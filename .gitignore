@@ -1,0 +1,4 @@
+lorahub/build*
+lorahub/managed_components
+tools/util_net_downlink/obj
+tools/util_net_downlink/net_downlink
