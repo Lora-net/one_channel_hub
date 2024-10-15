@@ -89,9 +89,12 @@ smtc_shield_sx126x_t shield = SMTC_SHIELD_SX1268MB1GAS_INSTANTIATE;
 #else
 smtc_shield_sx126x_t shield = SMTC_SHIELD_SX126X_NONE_INSTANTIATE;
 #endif
-#else  // CONFIG_HELTEC_WIFI_LORA_32_V3
+#elif defined( CONFIG_HELTEC_WIFI_LORA_32_V3 )
 #include "heltec_wifi_lora_32_v3.h"
 smtc_shield_sx126x_t shield = SMTC_SHIELD_SX1262MB1DAS_INSTANTIATE;
+#elif defined( CONFIG_SEEED_XIAO_ESP32S3_DEVKIT )
+#include "seeed_xiao_esp32s3_devkit_sx1262.h"
+smtc_shield_sx126x_t shield = SMTC_SHIELD_XIAO_ESP32S3_DEVKIT_SX1262_INSTANTIATE;
 #endif
 
 /*

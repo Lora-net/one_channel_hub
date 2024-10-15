@@ -15,6 +15,10 @@ menu "Hardware Configuration"
             bool "Heltec WiFi LoRa 32 v3"
             help
                 Select Heltec WiFi LoRa 32 v3.
+        config SEEED_XIAO_ESP32S3_DEVKIT
+            bool "Seeed XIAO ESP32S3 Gateway"
+            help
+                Select Seeed XIAO ESP32S3 Devkit.
     endchoice
 
 	choice RADIO_TYPE
