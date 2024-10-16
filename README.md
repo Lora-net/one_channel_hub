@@ -83,6 +83,7 @@ The main application handles the following:
 
 * Heltec WiFi LoRa 32 v3 (sx1262)
 * Semtech One-Channel Hub devkit (sx1261, sx1262, sx1268, llcc68, lr1121)
+* Seeed XIAO ESP32S3 Gateway (sx1262)
 
 Concerning the Semtech One-Channel Hub devkit, one Semtech radio shield is
 supported for each radio type:

@@ -55,12 +55,16 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 /* --- PRIVATE CONSTANTS ---------------------------------------------------- */
 
 /* Board specific constants */
-#ifdef CONFIG_SEMTECH_DEVKIT
-#define USER_LED_GPIO 38 /* RGB LED from Display shield */
-#else                    // CONFIG_HELTEC_WIFI_LORA_32_V3
-#define USER_LED_GPIO 35
-#endif
+#if defined( CONFIG_SEMTECH_DEVKIT )
+#define USER_LED_GPIO 38
 #define USER_BUTTON_GPIO 0
+#elif defined( CONFIG_HELTEC_WIFI_LORA_32_V3 )
+#define USER_LED_GPIO 35
+#define USER_BUTTON_GPIO 0
+#elif defined( CONFIG_SEEED_XIAO_ESP32S3_DEVKIT )
+#define USER_LED_GPIO 48
+#define USER_BUTTON_GPIO 21
+#endif
 
 /* ESP32 logging tags */
 static const char* TAG_MAIN = "main";
