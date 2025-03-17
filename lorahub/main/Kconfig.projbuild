@@ -1,4 +1,4 @@
-menu "LoRaWAN 1-CH HUB Configuration"
+menu "LoRaWAN one-channel hub config"
 
 menu "Hardware Configuration"
 
@@ -11,14 +11,22 @@ menu "Hardware Configuration"
             bool "Semtech DevKit"
             help
                 Select Semtech DevKit.
+        config EBYTES_ESP32_LR1121
+            bool "EBytes ESP32 LR1121"
+            help
+                Select EBytes ESP32+LR1121.
         config HELTEC_WIFI_LORA_32_V3
             bool "Heltec WiFi LoRa 32 v3"
             help
                 Select Heltec WiFi LoRa 32 v3.
         config SEEED_XIAO_ESP32S3_DEVKIT
-            bool "Seeed XIAO ESP32S3 Gateway"
+            bool "Seeed Xiao ESP32S3"
             help
-                Select Seeed XIAO ESP32S3 Devkit.
+                Select Seeed Xiao ESP32S3.
+        config LILYGO_T3S3_LORA32
+            bool "Lilygo T3S3 LoRa32"
+            help
+                Select Lilygo T3S3 LoRa32.
     endchoice
 
 	choice RADIO_TYPE
@@ -85,23 +93,30 @@ menu "Packet Forwarder Configuration"
     config CHANNEL_FREQ_HZ
         int "Channel frequency in Hertz"
         default 868100000
-        range 400000000 1000000000
+        range 150000000 2500000000
         help
-            Set frequency to use[Hz].
+            Set frequency to use [Hz].
 
-    config CHANNEL_LORA_DATARATE
-        int "Channel LoRa datarate (SF)"
+    config CHANNEL_LORA_SPREADING_FACTOR_1
+        int "Channel LoRa Spreading Factor 1"
         default 7
         range 5 12
         help
-            Set LoRa channel datarate (SF).
+            Set LoRa channel first spreading factor [5..12].
+
+    config CHANNEL_LORA_SPREADING_FACTOR_2
+        int "Channel LoRa Spreading Factor 2 (LR1121 only)"
+        default 0
+        range 0 12
+        help
+            Set LoRa channel second spreading factor, 0 to disable, or [5..12].
 
     config CHANNEL_LORA_BANDWIDTH
         int "Channel LoRa bandwidth in kHz"
         default 125
-        range 125 500
+        range 125 800
         help
-            Set LoRa channel bandwidth (125, 250, 500) kHz.
+            Set LoRa channel bandwidth (125, 250, 500, 200, 400, 800) kHz.
 
     config NETWORK_SERVER_ADDRESS
         string "LoRaWAN network server URL or IP address"

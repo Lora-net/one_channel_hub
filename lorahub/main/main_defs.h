@@ -37,8 +37,11 @@ typedef enum
     LRHB_ERROR_UNKNOWN,
 } lorahub_error_t;
 
-#endif  // _PKTFWD_DEFS_H
+/* -------------------------------------------------------------------------- */
+/* --- PUBLIC FUNCTIONS ----------------------------------------------------- */
 
 void wait_on_error( lorahub_error_t error, int line );
+
+#endif  // _PKTFWD_DEFS_H
 
 /* --- EOF ------------------------------------------------------------------ */

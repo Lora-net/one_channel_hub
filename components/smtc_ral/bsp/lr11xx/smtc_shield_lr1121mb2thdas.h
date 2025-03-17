@@ -1,7 +1,7 @@
 /*!
- * @file      smtc_shield_lr1121mb1dis.h
+ * @file      smtc_shield_lr1121mb2thdas.h
  *
- * @brief     Interface specific to LR1121MB1DIS shield
+ * @brief     Interface specific to LR1121MB2THDAS shield
  *
  * The Clear BSD License
  * Copyright Semtech Corporation 2023. All rights reserved.
@@ -31,8 +31,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef SMTC_SHIELD_LR1121MB1DIS_H
-#define SMTC_SHIELD_LR1121MB1DIS_H
+#ifndef SMTC_SHIELD_LR1121MB2THDAS_H
+#define SMTC_SHIELD_LR1121MB2THDAS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,6 +45,7 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdint.h>
+
 #include "smtc_shield_lr11xx_types.h"
 #include "smtc_shield_lr11x1_common.h"
 
@@ -53,16 +54,16 @@ extern "C" {
  * --- PUBLIC MACROS -----------------------------------------------------------
  */
 
-#define SMTC_SHIELD_LR1121MB1DIS_INSTANTIATE                                                                          \
+#define SMTC_SHIELD_LR1121MB2THDAS_INSTANTIATE                                                                          \
     {                                                                                                                 \
-        .get_pa_pwr_cfg             = smtc_shield_lr1121mb1dis_get_pa_pwr_cfg,                                        \
-        .get_rssi_calibration_table = smtc_shield_lr1121mb1dis_get_rssi_calibration_table,                            \
-        .get_rf_switch_cfg          = smtc_shield_lr1121mb1dis_get_rf_switch_cfg,                                     \
-        .get_reg_mode = smtc_shield_lr1121mb1dis_get_reg_mode, .get_xosc_cfg = smtc_shield_lr1121mb1dis_get_xosc_cfg, \
-        .get_lfclk_cfg = smtc_shield_lr1121mb1dis_get_lfclk_cfg, .get_pinout = smtc_shield_lr1121mb1dis_get_pinout,   \
+        .get_pa_pwr_cfg             = smtc_shield_lr1121mb2thdas_get_pa_pwr_cfg,                                        \
+        .get_rssi_calibration_table = smtc_shield_lr1121mb2thdas_get_rssi_calibration_table,                            \
+        .get_rf_switch_cfg          = smtc_shield_lr1121mb2thdas_get_rf_switch_cfg,                                     \
+        .get_reg_mode = smtc_shield_lr1121mb2thdas_get_reg_mode, .get_xosc_cfg = smtc_shield_lr1121mb2thdas_get_xosc_cfg, \
+        .get_lfclk_cfg = smtc_shield_lr1121mb2thdas_get_lfclk_cfg, .get_pinout = smtc_shield_lr1121mb2thdas_get_pinout,   \
         .get_rttof_recommended_rx_tx_delay_indicator =                                                                \
             smtc_shield_lr11x1_common_rttof_recommended_rx_tx_delay_indicator,                                        \
-        .get_capabilities = smtc_shield_lr1121mb1dis_get_capabilities,                                                \
+        .get_capabilities = smtc_shield_lr1121mb2thdas_get_capabilities,                                                \
     }
 
 /*
@@ -83,47 +84,47 @@ extern "C" {
 /**
  * @see smtc_shield_lr11xx_get_pa_pwr_cfg
  */
-const smtc_shield_lr11xx_pa_pwr_cfg_t* smtc_shield_lr1121mb1dis_get_pa_pwr_cfg( const uint32_t rf_freq_in_hz,
+const smtc_shield_lr11xx_pa_pwr_cfg_t* smtc_shield_lr1121mb2thdas_get_pa_pwr_cfg( const uint32_t rf_freq_in_hz,
                                                                                 int8_t expected_output_pwr_in_dbm );
 
 /**
  * @see smtc_shield_lr11xx_get_rssi_calibration_table
  */
-const lr11xx_radio_rssi_calibration_table_t* smtc_shield_lr1121mb1dis_get_rssi_calibration_table(
+const lr11xx_radio_rssi_calibration_table_t* smtc_shield_lr1121mb2thdas_get_rssi_calibration_table(
     const uint32_t rf_freq_in_hz );
 
 /**
  * @see smtc_shield_lr11xx_get_rf_switch_cfg
  */
-const lr11xx_system_rfswitch_cfg_t* smtc_shield_lr1121mb1dis_get_rf_switch_cfg( void );
+const lr11xx_system_rfswitch_cfg_t* smtc_shield_lr1121mb2thdas_get_rf_switch_cfg( void );
 
 /**
  * @see smtc_shield_lr11xx_get_reg_mode
  */
-lr11xx_system_reg_mode_t smtc_shield_lr1121mb1dis_get_reg_mode( void );
+lr11xx_system_reg_mode_t smtc_shield_lr1121mb2thdas_get_reg_mode( void );
 
 /**
  * @see smtc_shield_lr11xx_get_xosc_cfg
  */
-const smtc_shield_lr11xx_xosc_cfg_t* smtc_shield_lr1121mb1dis_get_xosc_cfg( void );
+const smtc_shield_lr11xx_xosc_cfg_t* smtc_shield_lr1121mb2thdas_get_xosc_cfg( void );
 
 /**
  * @see smtc_shield_lr11xx_get_lfclk_cfg
  */
-const smtc_shield_lr11xx_lfclk_cfg_t* smtc_shield_lr1121mb1dis_get_lfclk_cfg( void );
+const smtc_shield_lr11xx_lfclk_cfg_t* smtc_shield_lr1121mb2thdas_get_lfclk_cfg( void );
 
 /**
  * @see smtc_shield_lr11xx_get_pinout
  */
-const smtc_shield_lr11xx_pinout_t* smtc_shield_lr1121mb1dis_get_pinout( void );
+const smtc_shield_lr11xx_pinout_t* smtc_shield_lr1121mb2thdas_get_pinout( void );
 
 /**
  * @see smtc_shield_lr11xx_get_capabilities
  */
-const smtc_shield_lr11xx_capabilities_t* smtc_shield_lr1121mb1dis_get_capabilities( void );
+const smtc_shield_lr11xx_capabilities_t* smtc_shield_lr1121mb2thdas_get_capabilities( void );
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // SMTC_SHIELD_LR1121MB1DIS_H
+#endif  // SMTC_SHIELD_LR1121MB2THDAS_H

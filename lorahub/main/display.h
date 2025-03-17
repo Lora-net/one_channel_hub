@@ -18,6 +18,7 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 /* -------------------------------------------------------------------------- */
 /* --- DEPENDENCIES --------------------------------------------------------- */
 
+#include "lorahub_hal.h"
 #include "main_defs.h"
 
 /* -------------------------------------------------------------------------- */
@@ -40,7 +41,7 @@ typedef enum
 typedef struct
 {
     uint32_t freq_hz;
-    uint32_t datarate;
+    uint8_t  datarate[LGW_MULTI_SF_NB]; /* spreading factor(s) */
     uint16_t bw_khz;
 } display_channel_conf_t;
 
@@ -62,6 +63,7 @@ typedef struct
     uint32_t devaddr;
     float    rssi;
     float    snr;
+    uint8_t  sf;
 } display_last_rx_packet_t;
 
 typedef struct

@@ -76,7 +76,16 @@ static const char* TAG_BSP_SX126X = "BSP_SX126X";
  * --- PRIVATE VARIABLES -------------------------------------------------------
  */
 
-#if defined( CONFIG_SEMTECH_DEVKIT )
+#if defined( CONFIG_HELTEC_WIFI_LORA_32_V3 )
+#include "heltec_wifi_lora_32_v3.h"
+smtc_shield_sx126x_t shield = SMTC_SHIELD_SX1262MB1DAS_INSTANTIATE;
+#elif defined( CONFIG_SEEED_XIAO_ESP32S3_DEVKIT )
+#include "seeed_xiao_sx1262.h"
+smtc_shield_sx126x_t shield = SEEED_XIAO_SX1262_INSTANTIATE;
+#elif defined( CONFIG_LILYGO_T3S3_LORA32 )
+#include "lilygo_t3s3_lora32_sx1262.h"
+smtc_shield_sx126x_t shield = LILYGO_T3S3_LORA32_SX1262_INSTANTIATE;
+#else  // CONFIG_SEMTECH_DEVKIT
 #if defined( CONFIG_RADIO_TYPE_SX1261 )
 #include "smtc_shield_sx1261mb1bas.h"
 smtc_shield_sx126x_t shield = SMTC_SHIELD_SX1261MB1BAS_INSTANTIATE;
@@ -89,12 +98,6 @@ smtc_shield_sx126x_t shield = SMTC_SHIELD_SX1268MB1GAS_INSTANTIATE;
 #else
 smtc_shield_sx126x_t shield = SMTC_SHIELD_SX126X_NONE_INSTANTIATE;
 #endif
-#elif defined( CONFIG_HELTEC_WIFI_LORA_32_V3 )
-#include "heltec_wifi_lora_32_v3.h"
-smtc_shield_sx126x_t shield = SMTC_SHIELD_SX1262MB1DAS_INSTANTIATE;
-#elif defined( CONFIG_SEEED_XIAO_ESP32S3_DEVKIT )
-#include "seeed_xiao_esp32s3_devkit_sx1262.h"
-smtc_shield_sx126x_t shield = SMTC_SHIELD_XIAO_ESP32S3_DEVKIT_SX1262_INSTANTIATE;
 #endif
 
 /*

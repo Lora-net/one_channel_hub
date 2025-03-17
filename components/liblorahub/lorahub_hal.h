@@ -24,14 +24,15 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 /* -------------------------------------------------------------------------- */
 /* --- PUBLIC MACROS -------------------------------------------------------- */
 
-#define IS_LORA_BW( bw ) ( ( bw == BW_125KHZ ) || ( bw == BW_250KHZ ) || ( bw == BW_500KHZ ) )
+#define IS_LORA_BW( bw )                                                                          \
+    ( ( bw == BW_125KHZ ) || ( bw == BW_250KHZ ) || ( bw == BW_500KHZ ) || ( bw == BW_200KHZ ) || \
+      ( bw == BW_400KHZ ) || ( bw == BW_800KHZ ) )
 #define IS_LORA_DR( dr )                                                                                  \
     ( ( dr == DR_LORA_SF5 ) || ( dr == DR_LORA_SF6 ) || ( dr == DR_LORA_SF7 ) || ( dr == DR_LORA_SF8 ) || \
       ( dr == DR_LORA_SF9 ) || ( dr == DR_LORA_SF10 ) || ( dr == DR_LORA_SF11 ) || ( dr == DR_LORA_SF12 ) )
-#define IS_LORA_CR( cr ) \
-    ( ( cr == CR_LORA_4_5 ) || ( cr == CR_LORA_4_6 ) || ( cr == CR_LORA_4_7 ) || ( cr == CR_LORA_4_8 ) )
-
-#define IS_TX_MODE( mode ) ( ( mode == IMMEDIATE ) || ( mode == TIMESTAMPED ) || ( mode == ON_GPS ) )
+#define IS_LORA_CR( cr )                                                                                  \
+    ( ( cr == CR_LORA_4_5 ) || ( cr == CR_LORA_4_6 ) || ( cr == CR_LORA_4_7 ) || ( cr == CR_LORA_4_8 ) || \
+      ( cr == CR_LORA_LI_4_5 ) || ( cr == CR_LORA_LI_4_6 ) || ( cr == CR_LORA_LI_4_8 ) )
 
 /* -------------------------------------------------------------------------- */
 /* --- PUBLIC CONSTANTS ----------------------------------------------------- */
@@ -41,24 +42,22 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #define LGW_HAL_ERROR -1
 
 /* radio-specific parameters */
-#define LGW_XTAL_FREQU 32000000 /* frequency of the RF reference oscillator */
-#define LGW_RF_CHAIN_NB 1       /* number of RF chains */
-
-/* concentrator chipset-specific parameters */
-/* to use array parameters, declare a local const and use 'if_chain' as index */
-#define LGW_IF_CHAIN_NB 1 /* number of IF+modem RX chains */
+#define LGW_RF_CHAIN_NB 1 /* number of RF chains */
+#define LGW_MULTI_SF_NB 2 /* maximum number of spreading factor supported (dual-sf on LR11xx) */
 
 /* values available for the 'modulation' parameters */
 /* NOTE: arbitrary values */
 #define MOD_UNDEFINED 0
-#define MOD_CW 0x08
 #define MOD_LORA 0x10
 
 /* values available for the 'bandwidth' parameters */
 #define BW_UNDEFINED 0
-#define BW_500KHZ 0x06
-#define BW_250KHZ 0x05
-#define BW_125KHZ 0x04
+#define BW_800KHZ 0x0F /* 2.4Ghz bandwidth */
+#define BW_400KHZ 0x0E /* 2.4Ghz bandwidth */
+#define BW_200KHZ 0x0D /* 2.4Ghz bandwidth */
+#define BW_500KHZ 0x06 /* Sub-Ghz bandwidth */
+#define BW_250KHZ 0x05 /* Sub-Ghz bandwidth */
+#define BW_125KHZ 0x04 /* Sub-Ghz bandwidth */
 
 /* values available for the 'datarate' parameters */
 /* NOTE: LoRa values used directly to code SF bitmask in 'multi' modem, do not change */
@@ -79,6 +78,9 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #define CR_LORA_4_6 0x02
 #define CR_LORA_4_7 0x03
 #define CR_LORA_4_8 0x04
+#define CR_LORA_LI_4_5 0x05
+#define CR_LORA_LI_4_6 0x06
+#define CR_LORA_LI_4_8 0x07
 
 /* values available for the 'status' parameter */
 /* NOTE: values according to hardware specification */
@@ -90,7 +92,6 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 /* values available for the 'tx_mode' parameter */
 #define IMMEDIATE 0
 #define TIMESTAMPED 1
-#define ON_GPS 2
 
 /* values available for 'select' in the status function */
 #define TX_STATUS 1
@@ -113,6 +114,19 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 
 #define MIN_LORA_PREAMBLE 6
 #define STD_LORA_PREAMBLE 8
+#define HDR_LORA_PREAMBLE 12
+
+#define LORA_SYNC_WORD_PRIVATE 0x12       /* Private Network */
+#define LORA_SYNC_WORD_PUBLIC_SUBGHZ 0x34 /* Public Network for Sub-Ghz regions */
+#define LORA_SYNC_WORD_PUBLIC_WW2G4 0x21  /* Public Network for 2.4Ghz worldwide region */
+
+/* values available for the 'network type' */
+/* NOTE: arbitrary values */
+#define LPWAN_NETWORK_TYPE_PUBLIC 0
+#define LPWAN_NETWORK_TYPE_PRIVATE 1
+
+/* Network type configuration (TODO: make it configurable) */
+#define LPWAN_NETWORK_TYPE LPWAN_NETWORK_TYPE_PUBLIC
 
 /* -------------------------------------------------------------------------- */
 /* --- PUBLIC TYPES --------------------------------------------------------- */
@@ -134,10 +148,10 @@ struct lgw_conf_rxrf_s
 */
 struct lgw_conf_rxif_s
 {
-    uint8_t  modulation; /*!> RX modulation */
-    uint8_t  bandwidth;  /*!> RX bandwidth, 0 for default */
-    uint32_t datarate;   /*!> RX datarate, 0 for default */
-    uint8_t  coderate;   /*!> RX coding rate (LoRa only) */
+    uint8_t modulation;                /*!> RX modulation */
+    uint8_t bandwidth;                 /*!> RX bandwidth */
+    uint8_t datarate[LGW_MULTI_SF_NB]; /*!> RX spreading factor(s) */
+    uint8_t coderate;                  /*!> RX coding rate */
 };
 
 /**
@@ -152,11 +166,11 @@ struct lgw_pkt_rx_s
     uint32_t count_us;     /*!> internal concentrator counter for timestamping, 1 microsecond resolution */
     uint8_t  rf_chain;     /*!> through which RF chain the packet was received */
     uint8_t  modulation;   /*!> modulation used by the packet */
-    uint8_t  bandwidth;    /*!> modulation bandwidth (LoRa only) */
-    uint32_t datarate;     /*!> RX datarate of the packet (SF for LoRa) */
-    uint8_t  coderate;     /*!> error-correcting code of the packet (LoRa only) */
+    uint8_t  bandwidth;    /*!> modulation bandwidth */
+    uint8_t  datarate;     /*!> LoRa spreading factor */
+    uint8_t  coderate;     /*!> error-correcting code of the packet */
     float    rssic;        /*!> average RSSI of the channel in dB */
-    float    snr;          /*!> average packet SNR, in dB (LoRa only) */
+    float    snr;          /*!> average packet SNR, in dB */
     uint16_t size;         /*!> payload size in bytes */
     uint8_t  payload[256]; /*!> buffer containing the payload */
 };
@@ -174,13 +188,13 @@ struct lgw_pkt_tx_s
     int8_t   rf_power;     /*!> TX power, in dBm */
     uint8_t  modulation;   /*!> modulation to use for the packet */
     int8_t   freq_offset;  /*!> frequency offset from Radio Tx frequency (CW mode) */
-    uint8_t  bandwidth;    /*!> modulation bandwidth (LoRa only) */
-    uint32_t datarate;     /*!> TX datarate (SF for LoRa) */
-    uint8_t  coderate;     /*!> error-correcting code of the packet (LoRa only) */
-    bool     invert_pol;   /*!> invert signal polarity, for orthogonal downlinks (LoRa only) */
+    uint8_t  bandwidth;    /*!> modulation bandwidth */
+    uint8_t  datarate;     /*!> LoRa spreading factor */
+    uint8_t  coderate;     /*!> error-correcting code of the packet */
+    bool     invert_pol;   /*!> invert signal polarity, for orthogonal downlinks */
     uint16_t preamble;     /*!> set the preamble length, 0 for default */
     bool     no_crc;       /*!> if true, do not send a CRC in the packet */
-    bool     no_header;    /*!> if true, enable implicit header mode (LoRa) */
+    bool     no_header;    /*!> if true, enable implicit header mode */
     uint16_t size;         /*!> payload size in bytes */
     uint8_t  payload[256]; /*!> buffer containing the payload */
 };
@@ -274,17 +288,17 @@ uint32_t lgw_time_on_air( const struct lgw_pkt_tx_s* packet );
 @brief Return minimum and maximum frequency supported by the configured radio (in Hz)
 @param  min_freq_hz pointer to hold the minimum frequency supported
 @param  max_freq_hz pointer to hold the maximum frequency supported
-@return N/A
+@return LGW_HAL_ERROR id the operation failed, LGW_HAL_SUCCESS else
 */
-void lgw_get_min_max_freq_hz( uint32_t* min_freq_hz, uint32_t* max_freq_hz );
+int lgw_get_min_max_freq_hz( uint32_t* min_freq_hz, uint32_t* max_freq_hz );
 
 /**
 @brief Return minimum and maximum TX power supported by the configured radio (in dBm)
 @param  min_freq_hz pointer to hold the minimum TX power supported
 @param  max_freq_hz pointer to hold the maximum TX power supported
-@return N/A
+@return LGW_HAL_ERROR id the operation failed, LGW_HAL_SUCCESS else
 */
-void lgw_get_min_max_power_dbm( int8_t* min_power_dbm, int8_t* max_power_dbm );
+int lgw_get_min_max_power_dbm( int8_t* min_power_dbm, int8_t* max_power_dbm );
 
 #endif  // _LORAHUB_HAL_H
 

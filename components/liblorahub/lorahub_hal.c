@@ -19,6 +19,7 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 
 #include <esp_timer.h>
 
+#include "lorahub_log.h"
 #include "lorahub_aux.h"
 #include "lorahub_hal.h"
 #include "lorahub_hal_rx.h"
@@ -30,6 +31,24 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #if defined( CONFIG_HELTEC_WIFI_LORA_32_V3 )
 #if !defined( CONFIG_RADIO_TYPE_SX1262 )
 #error "Wrong radio selected for Heltec WiFi LoRa 32 v3 board. Please select sx1262 radio type"
+#endif
+#endif
+
+#if defined( CONFIG_EBYTES_ESP32_LR1121 )
+#if !defined( CONFIG_RADIO_TYPE_LR1121 )
+#error "Wrong radio selected for EBytes ESP32+LR1121 board. Please select lr1121 radio type"
+#endif
+#endif
+
+#if defined( CONFIG_SEEED_XIAO )
+#if !defined( CONFIG_RADIO_TYPE_SX1262 )
+#error "Wrong radio selected for Seeed Xiao ESP32S3 board. Please select sx1262 radio type"
+#endif
+#endif
+
+#if defined( CONFIG_LILYGO_T3S3_LORA32 )
+#if !defined( CONFIG_RADIO_TYPE_SX1262 )
+#error "Wrong radio selected for Lilygo T3S3 LoRa32 board. Please select sx1262 radio type"
 #endif
 #endif
 
@@ -45,7 +64,7 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #include "ral_lr11xx.h"
 #include "ral_lr11xx_bsp.h"
 #include "smtc_shield_lr11xx.h"
-#include "lr11xx_system.h"
+#include "lr11xx_system.h" /* for get_version*/
 #else
 #error "Please select radio type.."
 #endif
@@ -59,15 +78,18 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
         return LGW_HAL_ERROR; \
     }
 
+#define TCXO_STARTUP_TIME_US( tick, freq ) ( ( tick ) * 1000000 / ( freq ) )
+
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE CONSTANTS ---------------------------------------------------- */
 
 #define SPI_SPEED 2000000
 
-static const char* TAG_HAL = "LORAHUB_HAL";
+#define SX126X_RTC_FREQ_IN_HZ 64000UL
+#define LLCC68_RTC_FREQ_IN_HZ 64000UL
+#define LR11XX_RTC_FREQ_IN_HZ 32768UL
 
-#define LORA_SYNC_WORD_PRIVATE 0x12  // 0x12 Private Network
-#define LORA_SYNC_WORD_PUBLIC 0x34   // 0x34 Public Network
+static const char* TAG_HAL = LRHB_LOG_HAL;
 
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE TYPES -------------------------------------------------------- */
@@ -81,9 +103,10 @@ static uint8_t tx_status  = TX_STATUS_UNKNOWN;
 
 static struct lgw_conf_rxrf_s rxrf_conf = { .freq_hz = 0, .rssi_offset = 0.0, .tx_enable = false };
 
-static struct lgw_conf_rxif_s rxif_conf = {
-    .bandwidth = BW_UNDEFINED, .coderate = CR_UNDEFINED, .datarate = DR_UNDEFINED, .modulation = MOD_UNDEFINED
-};
+static struct lgw_conf_rxif_s rxif_conf = { .bandwidth  = BW_UNDEFINED,
+                                            .coderate   = CR_UNDEFINED,
+                                            .datarate   = { DR_UNDEFINED, DR_UNDEFINED },
+                                            .modulation = MOD_UNDEFINED };
 
 static spi_host_device_t spi_host_id = SPI2_HOST;
 
@@ -199,7 +222,7 @@ int lgw_connect( void )
     if( ret != ESP_OK )
     {
         ESP_LOGE( TAG_HAL, "ERROR: spi_bus_initialize failed with %d", ret );
-        return -1;
+        return LGW_HAL_ERROR;
     }
 
     spi_device_interface_config_t devcfg;
@@ -214,10 +237,10 @@ int lgw_connect( void )
     if( ret != ESP_OK )
     {
         ESP_LOGE( TAG_HAL, "ERROR: spi_bus_add_device failed with %d", ret );
-        return -1;
+        return LGW_HAL_ERROR;
     }
 
-    return 0;
+    return LGW_HAL_SUCCESS;
 }
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -265,8 +288,6 @@ int lgw_radio_setup( void )
 #endif
 
     ASSERT_RAL_RC( ral_set_rx_tx_fallback_mode( &lgw_ral, RAL_FALLBACK_STDBY_RC ) );
-    ASSERT_RAL_RC(
-        ral_set_lora_sync_word( &lgw_ral, LORA_SYNC_WORD_PUBLIC ) );  // TODO: make it configurable in menuconfig
 
     /* Install interrupt handler for RX IRQs */
     lgw_radio_init_rx( &lgw_ral );
@@ -303,6 +324,30 @@ int lgw_rxif_setconf( struct lgw_conf_rxif_s* conf )
     if( is_started == true )
     {
         ESP_LOGI( TAG_HAL, "ERROR: CONCENTRATOR IS RUNNING, STOP IT BEFORE CHANGING CONFIGURATION\n" );
+        return LGW_HAL_ERROR;
+    }
+
+    if( IS_LORA_DR( conf->datarate[0] ) == false )
+    {
+        ESP_LOGE( TAG_HAL, "ERROR: wrong datarate[0] - %s\n", __FUNCTION__ );
+        return LGW_HAL_ERROR;
+    }
+
+    if( ( conf->datarate[1] != DR_UNDEFINED ) && ( IS_LORA_DR( conf->datarate[1] ) == false ) )
+    {
+        ESP_LOGE( TAG_HAL, "ERROR: wrong datarate[1] - %s\n", __FUNCTION__ );
+        return LGW_HAL_ERROR;
+    }
+
+    if( IS_LORA_BW( conf->bandwidth ) == false )
+    {
+        ESP_LOGE( TAG_HAL, "ERROR: wrong bandwidth - %s\n", __FUNCTION__ );
+        return LGW_HAL_ERROR;
+    }
+
+    if( IS_LORA_CR( conf->coderate ) == false )
+    {
+        ESP_LOGE( TAG_HAL, "ERROR: wrong coderate - %s\n", __FUNCTION__ );
         return LGW_HAL_ERROR;
     }
 
@@ -343,11 +388,17 @@ int lgw_start( void )
         ESP_LOGE( TAG_HAL, "ERROR: modulation coderate not configured\n" );
         return LGW_HAL_ERROR;
     }
-    if( rxif_conf.datarate == DR_UNDEFINED )
+    if( rxif_conf.datarate[0] == DR_UNDEFINED )
     {
         ESP_LOGE( TAG_HAL, "ERROR: modulation datarate not configured\n" );
         return LGW_HAL_ERROR;
     }
+
+    /* configure logging verbosity */
+    esp_log_level_set( LRHB_LOG_HAL, LRHB_LOG_DEVEL_HAL );
+    esp_log_level_set( LRHB_LOG_HAL_RX, LRHB_LOG_DEVEL_HAL_RX );
+    esp_log_level_set( LRHB_LOG_HAL_TX, LRHB_LOG_DEVEL_HAL_TX );
+    esp_log_level_set( LRHB_LOG_HAL_AUX, LRHB_LOG_DEVEL_HAL_AUX );
 
     /* Configure SPI and GPIOs */
     err = lgw_connect( );
@@ -369,7 +420,13 @@ int lgw_start( void )
     rx_status = RX_OFF;
 
     /* Set RX */
-    lgw_radio_set_rx( &lgw_ral, rxrf_conf.freq_hz, rxif_conf.datarate, rxif_conf.bandwidth, rxif_conf.coderate );
+    err = lgw_radio_configure_rx( &lgw_ral, rxrf_conf.freq_hz, &rxif_conf );
+    if( err == LGW_HAL_ERROR )
+    {
+        ESP_LOGE( TAG_HAL, "ERROR: FAILED TO CONFIGURE RADIO FOR RX" );
+        return LGW_HAL_ERROR;
+    }
+    lgw_radio_set_rx( &lgw_ral );
 
     /* Update RX status */
     rx_status = RX_ON;
@@ -394,6 +451,8 @@ int lgw_start( void )
 
 int lgw_stop( void )
 {
+    esp_err_t ret;
+
     if( is_started == false )
     {
         ESP_LOGI( TAG_HAL, "Note: LoRa concentrator was not started...\n" );
@@ -402,6 +461,20 @@ int lgw_stop( void )
 
     /* set hal state */
     is_started = false;
+
+    ret = spi_bus_remove_device( radio_context.spi_handle );
+    if( ret != ESP_OK )
+    {
+        ESP_LOGE( TAG_HAL, "ERROR: spi_bus_remove_device failed with %d", ret );
+        return LGW_HAL_ERROR;
+    }
+
+    ret = spi_bus_free( spi_host_id );
+    if( ret != ESP_OK )
+    {
+        ESP_LOGE( TAG_HAL, "ERROR: spi_bus_free failed with %d", ret );
+        return LGW_HAL_ERROR;
+    }
 
     return LGW_HAL_SUCCESS;
 };
@@ -413,7 +486,7 @@ int lgw_receive( uint8_t max_pkt, struct lgw_pkt_rx_s* pkt_data )
     struct lgw_pkt_rx_s* p = &pkt_data[0];
     uint32_t             count_us;
     int8_t               rssi, snr;
-    uint8_t              status;
+    uint8_t              status, sf;
     uint16_t             size;
     bool                 irq_received;
     int                  nb_packet_received = 0;
@@ -429,7 +502,7 @@ int lgw_receive( uint8_t max_pkt, struct lgw_pkt_rx_s* pkt_data )
 
     memset( p, 0, sizeof( struct lgw_pkt_rx_s ) );
     nb_packet_received =
-        lgw_radio_get_pkt( &lgw_ral, &irq_received, &count_us, &rssi, &snr, &status, &size, p->payload );
+        lgw_radio_get_pkt( &lgw_ral, &irq_received, &count_us, &sf, &rssi, &snr, &status, &size, p->payload );
     if( nb_packet_received > 0 )
     {
         p->count_us   = count_us;
@@ -438,7 +511,7 @@ int lgw_receive( uint8_t max_pkt, struct lgw_pkt_rx_s* pkt_data )
         p->rf_chain   = 0;
         p->status     = status;
         p->modulation = rxif_conf.modulation;
-        p->datarate   = rxif_conf.datarate;
+        p->datarate   = sf;
         p->bandwidth  = rxif_conf.bandwidth;
         p->coderate   = rxif_conf.coderate;
         p->rssic      = ( float ) rssi;
@@ -446,15 +519,14 @@ int lgw_receive( uint8_t max_pkt, struct lgw_pkt_rx_s* pkt_data )
         p->size       = size;
 
         /* Compensate timestamp with for radio processing delay */
-        uint32_t count_us_correction = lgw_radio_timestamp_correction( rxif_conf.datarate, rxif_conf.bandwidth );
-        ESP_LOGI( TAG_HAL, "count_us correction: %lu us", count_us_correction );
+        uint32_t count_us_correction = lgw_radio_timestamp_correction( p->datarate, p->bandwidth );
         p->count_us -= count_us_correction;
     }
 
     if( irq_received == true )
     {
-        /* Reconfigure RX */
-        lgw_radio_set_rx( &lgw_ral, rxrf_conf.freq_hz, rxif_conf.datarate, rxif_conf.bandwidth, rxif_conf.coderate );
+        /* re-arm RX */
+        lgw_radio_set_rx( &lgw_ral );
     }
 
     return nb_packet_received;
@@ -464,6 +536,8 @@ int lgw_receive( uint8_t max_pkt, struct lgw_pkt_rx_s* pkt_data )
 
 int lgw_send( struct lgw_pkt_tx_s* pkt_data )
 {
+    int err;
+
     /* check if the concentrator is running */
     if( is_started == false )
     {
@@ -475,21 +549,33 @@ int lgw_send( struct lgw_pkt_tx_s* pkt_data )
     rx_status = RX_SUSPENDED;
 
     /* Configure for TX */
-    lgw_radio_configure_tx( &lgw_ral, pkt_data );
+    err = lgw_radio_configure_tx( &lgw_ral, pkt_data );
+    if( err == LGW_HAL_ERROR )
+    {
+        ESP_LOGE( TAG_HAL, "ERROR: FAILED TO CONFIGURE RADIO FOR TX" );
+        /* Back to RX */
+        lgw_radio_configure_rx( &lgw_ral, rxrf_conf.freq_hz, &rxif_conf );
+        lgw_radio_set_rx( &lgw_ral );
+        return LGW_HAL_ERROR;
+    }
 
     /* Update TX status */
     tx_status = TX_SCHEDULED;
 
     /* Get TCXO startup time, if any */
     uint32_t tcxo_startup_time_in_tick = 0;
+    uint32_t rtc_freq_in_hz            = 0;
 #if defined( CONFIG_RADIO_TYPE_SX1261 ) || defined( CONFIG_RADIO_TYPE_SX1262 ) || defined( CONFIG_RADIO_TYPE_SX1268 )
     ral_sx126x_bsp_get_xosc_cfg( NULL, NULL, NULL, &tcxo_startup_time_in_tick );
+    rtc_freq_in_hz = SX126X_RTC_FREQ_IN_HZ;
 #elif defined( CONFIG_RADIO_TYPE_LLCC68 )
     ral_llcc68_bsp_get_xosc_cfg( NULL, NULL, NULL, &tcxo_startup_time_in_tick );
+    rtc_freq_in_hz = LLCC68_RTC_FREQ_IN_HZ;
 #elif defined( CONFIG_RADIO_TYPE_LR1121 )
     ral_lr11xx_bsp_get_xosc_cfg( NULL, NULL, NULL, &tcxo_startup_time_in_tick );
+    rtc_freq_in_hz = LR11XX_RTC_FREQ_IN_HZ;
 #endif
-    uint32_t tcxo_startup_time_us = tcxo_startup_time_in_tick * 15625 / 1000;
+    uint32_t tcxo_startup_time_us = TCXO_STARTUP_TIME_US( tcxo_startup_time_in_tick, rtc_freq_in_hz );
 
     /* Wait for time to send packet */
     uint32_t count_us_now;
@@ -497,7 +583,7 @@ int lgw_send( struct lgw_pkt_tx_s* pkt_data )
     {
         lgw_get_instcnt( &count_us_now );
         WAIT_US( 100 );
-    } while( ( int32_t )( pkt_data->count_us - count_us_now ) > ( int32_t ) tcxo_startup_time_us );
+    } while( ( int32_t ) ( pkt_data->count_us - count_us_now ) > ( int32_t ) tcxo_startup_time_us );
 
     /* Send packet */
     ASSERT_RAL_RC( ral_set_tx( &lgw_ral ) );
@@ -515,13 +601,13 @@ int lgw_send( struct lgw_pkt_tx_s* pkt_data )
         if( ( irq_regs & RAL_IRQ_TX_DONE ) == RAL_IRQ_TX_DONE )
         {
             lgw_get_instcnt( &count_us_now );
-            printf( "%lu: IRQ_TX_DONE\n", count_us_now );
+            ESP_LOGD( TAG_HAL, "%lu: IRQ_TX_DONE", count_us_now );
             flag_tx_done = true;
         }
         if( ( irq_regs & RAL_IRQ_RX_TIMEOUT ) == RAL_IRQ_RX_TIMEOUT )
         {  // TODO: check if IRQ also valid for TX
             lgw_get_instcnt( &count_us_now );
-            ESP_LOGW( TAG_HAL, "%lu: TX:IRQ_TIMEOUT\n", count_us_now );
+            ESP_LOGW( TAG_HAL, "%lu: TX:IRQ_TIMEOUT", count_us_now );
             flag_tx_timeout = true;
         }
 
@@ -529,11 +615,14 @@ int lgw_send( struct lgw_pkt_tx_s* pkt_data )
         vTaskDelay( pdMS_TO_TICKS( 10 ) );
     } while( ( flag_tx_done == false ) && ( flag_tx_timeout == false ) );
 
+    ESP_LOGD( TAG_HAL, "TCXO startup time: %lu", tcxo_startup_time_us );
+
     /* Update TX status */
     tx_status = TX_FREE;
 
     /* Back to RX config */
-    lgw_radio_set_rx( &lgw_ral, rxrf_conf.freq_hz, rxif_conf.datarate, rxif_conf.bandwidth, rxif_conf.coderate );
+    lgw_radio_configure_rx( &lgw_ral, rxrf_conf.freq_hz, &rxif_conf );
+    lgw_radio_set_rx( &lgw_ral );
 
     /* Update RX status */
     rx_status = RX_ON;
@@ -602,7 +691,7 @@ int lgw_get_instcnt( uint32_t* inst_cnt_us )
 
 uint32_t lgw_time_on_air( const struct lgw_pkt_tx_s* packet )
 {
-    uint32_t toa_ms, toa_us;
+    uint32_t toa_ms = 0;
 
     if( packet == NULL )
     {
@@ -612,9 +701,28 @@ uint32_t lgw_time_on_air( const struct lgw_pkt_tx_s* packet )
 
     if( packet->modulation == MOD_LORA )
     {
-        toa_us = lora_packet_time_on_air( packet->bandwidth, packet->datarate, packet->coderate, packet->preamble,
-                                          packet->no_header, packet->no_crc, packet->size, NULL, NULL, NULL );
-        toa_ms = ( uint32_t )( ( double ) toa_us / 1000.0 + 0.5 );
+        if( lgw_check_lora_mod_params( packet->freq_hz, packet->bandwidth, packet->coderate ) != LGW_HAL_SUCCESS )
+        {
+            ESP_LOGE( TAG_HAL, "ERROR: Failed to compute time on air, wrong modulation parameters\n" );
+            return 0;
+        }
+
+        ral_lora_pkt_params_t ral_pkt_params;
+        ral_pkt_params.preamble_len_in_symb = packet->preamble;
+        ral_pkt_params.header_type = ( packet->no_header == false ) ? RAL_LORA_PKT_EXPLICIT : RAL_LORA_PKT_IMPLICIT;
+        ral_pkt_params.pld_len_in_bytes = packet->size;
+        ral_pkt_params.crc_is_on        = ( packet->no_crc == false ) ? true : false;
+        ral_pkt_params.invert_iq_is_on  = packet->invert_pol;
+
+        ral_lora_sf_t         ral_sf = lgw_convert_hal_to_ral_sf( packet->datarate );
+        ral_lora_bw_t         ral_bw = lgw_convert_hal_to_ral_bw( packet->bandwidth );
+        ral_lora_cr_t         ral_cr = lgw_convert_hal_to_ral_cr( packet->coderate );
+        ral_lora_mod_params_t ral_mod_params;
+        ral_mod_params.sf   = ral_sf;
+        ral_mod_params.bw   = ral_bw;
+        ral_mod_params.cr   = ral_cr;
+        ral_mod_params.ldro = ral_compute_lora_ldro( ral_sf, ral_bw );
+        toa_ms              = ral_get_lora_time_on_air_in_ms( &lgw_ral, &ral_pkt_params, &ral_mod_params );
     }
     else
     {
@@ -628,38 +736,82 @@ uint32_t lgw_time_on_air( const struct lgw_pkt_tx_s* packet )
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
-void lgw_get_min_max_freq_hz( uint32_t* min_freq_hz, uint32_t* max_freq_hz )
+int lgw_get_min_max_freq_hz( uint32_t* min_freq_hz, uint32_t* max_freq_hz )
 {
+    if( rxrf_conf.freq_hz == 0 )
+    {
+        ESP_LOGE( TAG_HAL, "ERROR: NOT CONFIGURED (RX FREQ)\n" );
+        return LGW_HAL_ERROR;
+    }
+
 #if defined( CONFIG_RADIO_TYPE_SX1261 ) || defined( CONFIG_RADIO_TYPE_SX1262 ) || defined( CONFIG_RADIO_TYPE_SX1268 )
     const smtc_shield_sx126x_t*              shield              = ral_sx126x_get_shield( );
     const smtc_shield_sx126x_capabilities_t* shield_capabilities = shield->get_capabilities( );
+    *min_freq_hz                                                 = shield_capabilities->freq_hz_min;
+    *max_freq_hz                                                 = shield_capabilities->freq_hz_max;
 #elif defined( CONFIG_RADIO_TYPE_LLCC68 )
     const smtc_shield_llcc68_t*              shield              = ral_llcc68_get_shield( );
     const smtc_shield_llcc68_capabilities_t* shield_capabilities = shield->get_capabilities( );
+    *min_freq_hz                                                 = shield_capabilities->freq_hz_min;
+    *max_freq_hz                                                 = shield_capabilities->freq_hz_max;
 #elif defined( CONFIG_RADIO_TYPE_LR1121 )
     const smtc_shield_lr11xx_t*              shield              = ral_lr11xx_get_shield( );
     const smtc_shield_lr11xx_capabilities_t* shield_capabilities = shield->get_capabilities( );
+    if( rxrf_conf.freq_hz >= 2400000000 )
+    {
+        /* 2.4Ghz */
+        *min_freq_hz = shield_capabilities->hf_freq_hz_min;
+        *max_freq_hz = shield_capabilities->hf_freq_hz_max;
+    }
+    else
+    {
+        /* Sub-Ghz */
+        *min_freq_hz = shield_capabilities->lf_freq_hz_min;
+        *max_freq_hz = shield_capabilities->lf_freq_hz_max;
+    }
 #endif
-    *min_freq_hz = shield_capabilities->freq_hz_min;
-    *max_freq_hz = shield_capabilities->freq_hz_max;
+
+    return LGW_HAL_SUCCESS;
 }
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
-void lgw_get_min_max_power_dbm( int8_t* min_power_dbm, int8_t* max_power_dbm )
+int lgw_get_min_max_power_dbm( int8_t* min_power_dbm, int8_t* max_power_dbm )
 {
+    if( rxrf_conf.freq_hz == 0 )
+    {
+        ESP_LOGE( TAG_HAL, "ERROR: NOT CONFIGURED (RX FREQ)\n" );
+        return LGW_HAL_ERROR;
+    }
+
 #if defined( CONFIG_RADIO_TYPE_SX1261 ) || defined( CONFIG_RADIO_TYPE_SX1262 ) || defined( CONFIG_RADIO_TYPE_SX1268 )
     const smtc_shield_sx126x_t*              shield              = ral_sx126x_get_shield( );
     const smtc_shield_sx126x_capabilities_t* shield_capabilities = shield->get_capabilities( );
+    *min_power_dbm                                               = shield_capabilities->power_dbm_min;
+    *max_power_dbm                                               = shield_capabilities->power_dbm_max;
 #elif defined( CONFIG_RADIO_TYPE_LLCC68 )
     const smtc_shield_llcc68_t*              shield              = ral_llcc68_get_shield( );
     const smtc_shield_llcc68_capabilities_t* shield_capabilities = shield->get_capabilities( );
+    *min_power_dbm                                               = shield_capabilities->power_dbm_min;
+    *max_power_dbm                                               = shield_capabilities->power_dbm_max;
 #elif defined( CONFIG_RADIO_TYPE_LR1121 )
     const smtc_shield_lr11xx_t*              shield              = ral_lr11xx_get_shield( );
     const smtc_shield_lr11xx_capabilities_t* shield_capabilities = shield->get_capabilities( );
+    if( rxrf_conf.freq_hz >= 2400000000 )
+    {
+        /* 2.4Ghz */
+        *min_power_dbm = shield_capabilities->hf_power_dbm_min;
+        *max_power_dbm = shield_capabilities->hf_power_dbm_max;
+    }
+    else
+    {
+        /* Sub-Ghz */
+        *min_power_dbm = shield_capabilities->lf_power_dbm_min;
+        *max_power_dbm = shield_capabilities->lf_power_dbm_max;
+    }
 #endif
-    *min_power_dbm = shield_capabilities->power_dbm_min;
-    *max_power_dbm = shield_capabilities->power_dbm_max;
+
+    return LGW_HAL_SUCCESS;
 }
 
 /* --- EOF ------------------------------------------------------------------ */

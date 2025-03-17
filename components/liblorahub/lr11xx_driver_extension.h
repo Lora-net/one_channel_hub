@@ -1,10 +1,10 @@
 /*!
- * \file      smtc_shield_lr11xx_types.h
+ * @file      lr11xx_driver_extension.h
  *
- * \brief     Types common to all LR11xx-based shields
+ * @brief     Driver extension definition for LR11XX
  *
  * The Clear BSD License
- * Copyright Semtech Corporation 2023. All rights reserved.
+ * Copyright Semtech Corporation 2021. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted (subject to the limitations in the disclaimer
@@ -32,8 +32,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SMTC_SHIELD_LR11XX_TYPES_H
-#define SMTC_SHIELD_LR11XX_TYPES_H
+#ifndef LR11XX_DRIVER_EXTENSION_H
+#define LR11XX_DRIVER_EXTENSION_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,32 +44,12 @@ extern "C" {
  * --- DEPENDENCIES ------------------------------------------------------------
  */
 
-#include <stdint.h>
-
-#include <driver/gpio.h>
-
-#include "lr11xx_system.h"
-#include "lr11xx_radio.h"
+#include "lr11xx_types.h"
 
 /*
  * -----------------------------------------------------------------------------
  * --- PUBLIC MACROS -----------------------------------------------------------
  */
-
-#define SMTC_SHIELD_LR11XX_SUBGHZ_FREQ_MIN 150000000
-#define SMTC_SHIELD_LR11XX_SUBGHZ_FREQ_MAX 960000000
-
-#define SMTC_SHIELD_LR112X_2GHZ_FREQ_MIN 2000000000
-#define SMTC_SHIELD_LR112X_2GHZ_FREQ_MAX 2100000000
-
-#define SMTC_SHIELD_LR112X_2_4GHZ_FREQ_MIN 2400000000
-#define SMTC_SHIELD_LR112X_2_4GHZ_FREQ_MAX 2500000000
-
-#define SMTC_SHIELD_LR11XX_MIN_PWR -17
-#define SMTC_SHIELD_LR11XX_MAX_PWR 22
-
-#define SMTC_SHIELD_LR112X_MIN_PWR_HF -18
-#define SMTC_SHIELD_LR112X_MAX_PWR_HF 13
 
 /*
  * -----------------------------------------------------------------------------
@@ -81,74 +61,58 @@ extern "C" {
  * --- PUBLIC TYPES ------------------------------------------------------------
  */
 
-/**
- * @brief Power amplifier and output power configurations structure definition
- */
-typedef struct smtc_shield_lr11xx_pa_pwr_cfg_s
+typedef enum lr11xx_detector_path_e
 {
-    int8_t                power;
-    lr11xx_radio_pa_cfg_t pa_config;
-} smtc_shield_lr11xx_pa_pwr_cfg_t;
+    LR11XX_LORA_DETECT_PATH_MAIN   = 0,  //!< Main detector
+    LR11XX_LORA_DETECT_PATH_SIDE_0 = 1,  //!< Side detector 0
+    LR11XX_LORA_DETECT_PATH_SIDE_1 = 2,  //!< Side detector 1
+    LR11XX_LORA_DETECT_PATH_SIDE_2 = 3,  //!< Side detector 2
+} lr11xx_detector_path_t;
 
-/**
- * @brief External 32MHz oscillator configuration structure definition
- */
-typedef struct smtc_shield_lr11xx_xosc_cfg_s
+typedef struct lr11xx_side_detector_cfg_s
 {
-    bool                                has_tcxo;
-    lr11xx_system_tcxo_supply_voltage_t supply;
-    uint32_t                            startup_time_in_tick;
-} smtc_shield_lr11xx_xosc_cfg_t;
+    uint8_t half_bin;          // Bit 31
+    uint8_t msp_peak_nb;       // Bits 30:28
+    uint8_t msp_pnr;           // Bits 26:20
+    uint8_t peak2_pos;         // Bits 19:15
+    uint8_t peak1_pos;         // Bits 14:10
+    uint8_t ppm_offset_hc;     // Bits 9:8
+    uint8_t header_diff_mode;  // Bit 7
+    uint8_t fine_synch;        // Bit 6
+    uint8_t chirp_invert;      // Bit 5
+    uint8_t enable;            // Bit 4
+    uint8_t sf_log;            // Bits 3:0
+} lr11xx_side_detector_cfg_t;
 
-/**
- * @brief 32kHz clock configuration structure definition
- */
-typedef struct smtc_shield_lr11xx_lfclk_cfg_s
+typedef struct lr11xx_last_rx_status_s
 {
-    lr11xx_system_lfclk_cfg_t lf_clk_cfg;
-    bool                      wait_32k_ready;
-} smtc_shield_lr11xx_lfclk_cfg_t;
-
-/**
- * @brief Pinout structure definition
- */
-typedef struct smtc_shield_lr11xx_pinout_s
-{
-    gpio_num_t nss;
-    gpio_num_t sclk;
-    gpio_num_t mosi;
-    gpio_num_t miso;
-    gpio_num_t reset;
-    gpio_num_t busy;
-    gpio_num_t irq;
-    gpio_num_t lna;
-    gpio_num_t led_tx;
-    gpio_num_t led_rx;
-    gpio_num_t led_scan;
-} smtc_shield_lr11xx_pinout_t;
-
-/**
- * @brief Capabilities structure definition
- */
-typedef struct smtc_shield_lr11xx_capabilities_s
-{
-    uint32_t lf_freq_hz_min;
-    uint32_t lf_freq_hz_max;
-    uint32_t hf_freq_hz_min;
-    uint32_t hf_freq_hz_max;
-    int8_t   lf_power_dbm_min;
-    int8_t   lf_power_dbm_max;
-    int8_t   hf_power_dbm_min;
-    int8_t   hf_power_dbm_max;
-} smtc_shield_lr11xx_capabilities_t;
+    uint8_t                last_ack_rx_ok;    // Bit 31
+    uint8_t                rf_en_request;     // Bits 29:28
+    uint8_t                last_cad;          // Bits 27:20
+    lr11xx_detector_path_t last_detect_path;  // Bits 18:16
+    uint8_t                payload_length;    // Bits 15:8
+    uint8_t                hdr_crc16_en;      // Bit 4
+    uint8_t                hdr_coding_rate;   // Bits 3:1
+    uint8_t                hdr_signals_ppm;   // Bit 0
+} lr11xx_last_rx_status_t;
 
 /*
  * -----------------------------------------------------------------------------
  * --- PUBLIC FUNCTIONS PROTOTYPES ---------------------------------------------
  */
 
+lr11xx_status_t lr11xx_get_lora_side_detector_cfg( const void* context, uint8_t idx, lr11xx_side_detector_cfg_t* cfg );
+
+lr11xx_status_t lr11xx_set_lora_side_detector_cfg( const void* context, uint8_t idx, lr11xx_side_detector_cfg_t* cfg );
+
+lr11xx_status_t lr11xx_get_last_rx_status( const void* context, lr11xx_last_rx_status_t* rx_status );
+
+lr11xx_status_t lr11xx_set_agc_freeze_after_sync( const void* context );
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // SMTC_SHIELD_LR11XX_TYPES_H
+#endif  // LR11XX_DRIVER_EXTENSION_H
+
+/* --- EOF ------------------------------------------------------------------ */

@@ -54,9 +54,9 @@ extern "C" {
  * --- PUBLIC CONSTANTS --------------------------------------------------------
  */
 
-#define LORAHUB_FW_VERSION_MAJOR 0
-#define LORAHUB_FW_VERSION_MINOR 3
-#define LORAHUB_FW_VERSION_PATCH 3
+#define LORAHUB_FW_VERSION_MAJOR 1
+#define LORAHUB_FW_VERSION_MINOR 1
+#define LORAHUB_FW_VERSION_PATCH 0
 
 /* version string in format x.x.x */
 #define LORAHUB_FW_VERSION_STR \

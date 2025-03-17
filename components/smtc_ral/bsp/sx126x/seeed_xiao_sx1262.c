@@ -1,7 +1,7 @@
 /*!
- * @file      smtc_shield_xiao_esp32s3_devkit_sx1262.c
+ * @file      seeed_xiao_sx1262.c
  *
- * @brief     Implementation specific to XIAO_ESP32S3_DEVKIT_SX1262 shield
+ * @brief     Implementation spaecific to Seeed Xiao sx1262 board.
  *
  * The Clear BSD License
  * Copyright Semtech Corporation 2022. All rights reserved.
@@ -52,7 +52,7 @@
  * --- PRIVATE CONSTANTS -------------------------------------------------------
  */
 
-const smtc_shield_sx126x_pa_pwr_cfg_t smtc_shield_xiao_esp32s3_devkit_sx1262_pa_pwr_cfg_table[SMTC_SHIELD_SX1262_MAX_PWR - SMTC_SHIELD_SX1262_MIN_PWR + 1] = {
+const smtc_shield_sx126x_pa_pwr_cfg_t seeed_xiao_sx1262_pa_pwr_cfg_table[SMTC_SHIELD_SX1262_MAX_PWR - SMTC_SHIELD_SX1262_MIN_PWR + 1] = {
     {   // Expected output power = -9dBm
         .power = 3,
         .pa_config = {
@@ -346,32 +346,48 @@ const smtc_shield_sx126x_pa_pwr_cfg_t smtc_shield_xiao_esp32s3_devkit_sx1262_pa_
 /**
  * @brief XOSC configuration
  */
-const smtc_shield_sx126x_xosc_cfg_t smtc_shield_xiao_esp32s3_devkit_sx1262_xosc_cfg = {
+const smtc_shield_sx126x_xosc_cfg_t seeed_xiao_sx1262_xosc_cfg = {
     .tcxo_is_radio_controlled = true,
     .supply_voltage           = SX126X_TCXO_CTRL_3_0V,
     .startup_time_in_tick     = 300,
 };
 
 /**
- * @brief GPIO configuration
+ * @brief GPIO configuration through B2B connector
+ * ESP32-S3 chip features 45 physical GPIO pins (GPIO0 ~ GPIO21 and GPIO26 ~ GPIO48)
  */
-const smtc_shield_sx126x_pinout_t smtc_shield_xiao_esp32s3_devkit_sx1262_pinout = {
-    .nss   = 41,  /* GPIO4 */
-    .sclk  = 7,  /* GPIO7 */
-    .mosi  = 9, /* GPIO9 */
-    .miso  = 8, /* GPIO8 */
-    .reset = 42, /* GPIO3 */
-    .busy  = 40, /* GPIO2 */
-    .irq   = 39, /* DIO1 */
-    .antenna_sw = 38, /* GPIO5 */
-    .led_tx     = 0xFF, /* NC */
-    .led_rx     = 0xFF, /* NC */
+const smtc_shield_sx126x_pinout_t seeed_xiao_sx1262_pinout = {
+    .nss        = 41,   /* IO41 */
+    .sclk       = 7,    /* IO7 */
+    .mosi       = 9,    /* IO9 */
+    .miso       = 8,    /* IO8 */
+    .reset      = 42,   /* IO42 */
+    .busy       = 40,   /* IO40 */
+    .irq        = 39,   /* IO39 */
+    .antenna_sw = 38,   /* IO38 */
+    .led_tx     = 0xFF, /* NOT USED */
+    .led_rx     = 0xFF, /* NOT USED */
 };
+
+#if 0  // GPIO configuration without B2B connector
+{
+    .nss   = 4,
+    .sclk  = 7,
+    .mosi  = 9,
+    .miso  = 8,
+    .reset = 3,
+    .busy  = 2,
+    .irq   = 1,
+    .antenna_sw = 5,
+    .led_tx     = 0xFF,
+    .led_rx     = 0xFF,
+}
+#endif
 
 /**
  * @brief Board capabilities
  */
-const smtc_shield_sx126x_capabilities_t smtc_shield_xiao_esp32s3_devkit_sx1262_capabilities = {
+const smtc_shield_sx126x_capabilities_t seeed_xiao_sx1262_capabilities = {
     .freq_hz_min   = SMTC_SHIELD_SX126X_FREQ_MIN,
     .freq_hz_max   = SMTC_SHIELD_SX126X_FREQ_MAX,
     .power_dbm_min = SMTC_SHIELD_SX1262_MIN_PWR,
@@ -403,45 +419,44 @@ const smtc_shield_sx126x_capabilities_t smtc_shield_xiao_esp32s3_devkit_sx1262_c
  * --- PUBLIC FUNCTIONS DEFINITION ---------------------------------------------
  */
 
-const smtc_shield_sx126x_pa_pwr_cfg_t* smtc_shield_xiao_esp32s3_devkit_sx1262_get_pa_pwr_cfg(
-    const uint32_t rf_freq_in_hz, const int8_t expected_output_pwr_in_dbm )
+const smtc_shield_sx126x_pa_pwr_cfg_t* seeed_xiao_sx1262_get_pa_pwr_cfg( const uint32_t rf_freq_in_hz,
+                                                                         const int8_t   expected_output_pwr_in_dbm )
 {
     if( ( SMTC_SHIELD_SX126X_FREQ_MIN <= rf_freq_in_hz ) && ( rf_freq_in_hz <= SMTC_SHIELD_SX126X_FREQ_MAX ) )
     {
         if( ( SMTC_SHIELD_SX1262_MIN_PWR <= expected_output_pwr_in_dbm ) &&
             ( expected_output_pwr_in_dbm <= SMTC_SHIELD_SX1262_MAX_PWR ) )
         {
-            return &(
-                smtc_shield_xiao_esp32s3_devkit_sx1262_pa_pwr_cfg_table[expected_output_pwr_in_dbm - SMTC_SHIELD_SX1262_MIN_PWR] );
+            return &( seeed_xiao_sx1262_pa_pwr_cfg_table[expected_output_pwr_in_dbm - SMTC_SHIELD_SX1262_MIN_PWR] );
         }
     }
 
     return NULL;
 }
 
-bool smtc_shield_xiao_esp32s3_devkit_sx1262_is_dio2_set_as_rf_switch( void )
+bool seeed_xiao_sx1262_is_dio2_set_as_rf_switch( void )
 {
     return true;
 }
 
-sx126x_reg_mod_t smtc_shield_xiao_esp32s3_devkit_sx1262_get_reg_mode( void )
+sx126x_reg_mod_t seeed_xiao_sx1262_get_reg_mode( void )
 {
     return SX126X_REG_MODE_LDO;
 }
 
-const smtc_shield_sx126x_xosc_cfg_t* smtc_shield_xiao_esp32s3_devkit_sx1262_get_xosc_cfg( void )
+const smtc_shield_sx126x_xosc_cfg_t* seeed_xiao_sx1262_get_xosc_cfg( void )
 {
-    return &smtc_shield_xiao_esp32s3_devkit_sx1262_xosc_cfg;
+    return &seeed_xiao_sx1262_xosc_cfg;
 }
 
-const smtc_shield_sx126x_pinout_t* smtc_shield_xiao_esp32s3_devkit_sx1262_get_pinout( void )
+const smtc_shield_sx126x_pinout_t* seeed_xiao_sx1262_get_pinout( void )
 {
-    return &smtc_shield_xiao_esp32s3_devkit_sx1262_pinout;
+    return &seeed_xiao_sx1262_pinout;
 }
 
-const smtc_shield_sx126x_capabilities_t* smtc_shield_xiao_esp32s3_devkit_sx1262_get_capabilities( void )
+const smtc_shield_sx126x_capabilities_t* seeed_xiao_sx1262_get_capabilities( void )
 {
-    return &smtc_shield_xiao_esp32s3_devkit_sx1262_capabilities;
+    return &seeed_xiao_sx1262_capabilities;
 }
 
 /*

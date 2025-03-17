@@ -53,11 +53,16 @@
  * --- PRIVATE MACROS-----------------------------------------------------------
  */
 
-#define SMTC_SHIELD_LR11XX_NONE_INSTANTIATE                                                                          \
-    {                                                                                                                \
-        .get_pa_pwr_cfg = NULL, .get_rssi_calibration_table = NULL, .get_rf_switch_cfg = NULL, .get_reg_mode = NULL, \
-        .get_xosc_cfg = NULL, .get_lfclk_cfg = NULL, .get_pinout = NULL,                                             \
-        .get_rttof_recommended_rx_tx_delay_indicator = NULL,                                                         \
+#define SMTC_SHIELD_LR11XX_NONE_INSTANTIATE                  \
+    {                                                        \
+        .get_pa_pwr_cfg                              = NULL, \
+        .get_rssi_calibration_table                  = NULL, \
+        .get_rf_switch_cfg                           = NULL, \
+        .get_reg_mode                                = NULL, \
+        .get_xosc_cfg                                = NULL, \
+        .get_lfclk_cfg                               = NULL, \
+        .get_pinout                                  = NULL, \
+        .get_rttof_recommended_rx_tx_delay_indicator = NULL, \
     }
 
 /*
@@ -77,15 +82,16 @@ static const char* TAG_BSP_LR11XX = "BSP_LR11XX";
  * --- PRIVATE VARIABLES -------------------------------------------------------
  */
 
-#if defined( CONFIG_SEMTECH_DEVKIT )
+#if defined( CONFIG_EBYTES_ESP32_LR1121 )
+#include "ebytes_esp32_lr1121.h"
+smtc_shield_lr11xx_t shield = EBYTES_ESP32_LR1121_INSTANTIATE;
+#else  // CONFIG_SEMTECH_DEVKIT
 #if defined( CONFIG_RADIO_TYPE_LR1121 )
-#include "smtc_shield_lr1121mb1dis.h"
-smtc_shield_lr11xx_t shield = SMTC_SHIELD_LR1121MB1DIS_INSTANTIATE;
+#include "smtc_shield_lr1121mb2thdas.h"
+smtc_shield_lr11xx_t shield = SMTC_SHIELD_LR1121MB2THDAS_INSTANTIATE;
 #else
 smtc_shield_lr11xx_t shield = SMTC_SHIELD_LR11XX_NONE_INSTANTIATE;
 #endif
-#else
-smtc_shield_lr11xx_t shield = SMTC_SHIELD_LR11XX_NONE_INSTANTIATE;
 #endif
 
 /*

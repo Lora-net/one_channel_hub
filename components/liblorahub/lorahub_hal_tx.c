@@ -17,6 +17,7 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 
 #include <string.h>
 
+#include "lorahub_log.h"
 #include "lorahub_aux.h"
 #include "lorahub_hal.h"
 #include "lorahub_hal_tx.h"
@@ -27,14 +28,10 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE MACROS -------------------------------------------------------- */
 
-#define SET_PPM_ON( bw, dr )                                                             \
-    ( ( ( bw == BW_125KHZ ) && ( ( dr == DR_LORA_SF11 ) || ( dr == DR_LORA_SF12 ) ) ) || \
-      ( ( bw == BW_250KHZ ) && ( dr == DR_LORA_SF12 ) ) )
-
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE CONSTANTS ----------------------------------------------------- */
 
-static const char* TAG_HAL_TX = "HAL_TX";
+static const char* TAG_HAL_TX = LRHB_LOG_HAL_TX;
 
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE TYPES --------------------------------------------------------- */
@@ -76,6 +73,13 @@ int lgw_radio_configure_tx( const ral_t* ral, struct lgw_pkt_tx_s* pkt_data )
     set_led_rx( ral, false );
     set_led_tx( ral, true );
 
+    /* Check parameters */
+    if( lgw_check_lora_mod_params( pkt_data->freq_hz, pkt_data->bandwidth, pkt_data->coderate ) != LGW_HAL_SUCCESS )
+    {
+        ESP_LOGE( TAG_HAL_TX, "Invalid parameters to configure for TX" );
+        return LGW_HAL_ERROR;
+    }
+
     /* Configure for TX */
     ASSERT_RAL_RC( ral_set_standby( ral, RAL_STANDBY_CFG_RC ) );
 
@@ -83,74 +87,11 @@ int lgw_radio_configure_tx( const ral_t* ral, struct lgw_pkt_tx_s* pkt_data )
     ASSERT_RAL_RC( ral_set_rf_freq( ral, pkt_data->freq_hz ) );
     ASSERT_RAL_RC( ral_set_tx_cfg( ral, pkt_data->rf_power, pkt_data->freq_hz ) );
 
-    ral_lora_sf_t ral_dr;
-    switch( pkt_data->datarate )
-    {
-    case DR_LORA_SF5:
-        ral_dr = RAL_LORA_SF5;
-        break;
-    case DR_LORA_SF6:
-        ral_dr = RAL_LORA_SF6;
-        break;
-    case DR_LORA_SF7:
-        ral_dr = RAL_LORA_SF7;
-        break;
-    case DR_LORA_SF8:
-        ral_dr = RAL_LORA_SF8;
-        break;
-    case DR_LORA_SF9:
-        ral_dr = RAL_LORA_SF9;
-        break;
-    case DR_LORA_SF10:
-        ral_dr = RAL_LORA_SF10;
-        break;
-    case DR_LORA_SF11:
-        ral_dr = RAL_LORA_SF11;
-        break;
-    case DR_LORA_SF12:
-        ral_dr = RAL_LORA_SF12;
-        break;
-    default:
-        ESP_LOGW( TAG_HAL_TX, "datarate %lu not supported", pkt_data->datarate );
-        return LGW_HAL_ERROR;
-    }
-    ral_lora_bw_t ral_bw;
-    switch( pkt_data->bandwidth )
-    {
-    case BW_125KHZ:
-        ral_bw = RAL_LORA_BW_125_KHZ;
-        break;
-    case BW_250KHZ:
-        ral_bw = RAL_LORA_BW_250_KHZ;
-        break;
-    case BW_500KHZ:
-        ral_bw = RAL_LORA_BW_500_KHZ;
-        break;
-    default:
-        ESP_LOGW( TAG_HAL_TX, "bandwidth %u not supported", pkt_data->bandwidth );
-        return LGW_HAL_ERROR;
-    }
-    ral_lora_cr_t ral_cr;
-    switch( pkt_data->coderate )
-    {
-    case CR_LORA_4_5:
-        ral_cr = RAL_LORA_CR_4_5;
-        break;
-    case CR_LORA_4_6:
-        ral_cr = RAL_LORA_CR_4_6;
-        break;
-    case CR_LORA_4_7:
-        ral_cr = RAL_LORA_CR_4_7;
-        break;
-    case CR_LORA_4_8:
-        ral_cr = RAL_LORA_CR_4_8;
-        break;
-    default:
-        ESP_LOGW( TAG_HAL_TX, "coderate %u not supported", pkt_data->coderate );
-        return LGW_HAL_ERROR;
-    }
+    ral_lora_sf_t         ral_sf          = lgw_convert_hal_to_ral_sf( pkt_data->datarate );
+    ral_lora_bw_t         ral_bw          = lgw_convert_hal_to_ral_bw( pkt_data->bandwidth );
+    ral_lora_cr_t         ral_cr          = lgw_convert_hal_to_ral_cr( pkt_data->coderate );
     ral_lora_mod_params_t lora_mod_params = {
-        .sf = ral_dr, .bw = ral_bw, .cr = ral_cr, .ldro = SET_PPM_ON( pkt_data->bandwidth, pkt_data->datarate )
+        .sf = ral_sf, .bw = ral_bw, .cr = ral_cr, .ldro = ral_compute_lora_ldro( ral_sf, ral_bw )
     };
     ASSERT_RAL_RC( ral_set_lora_mod_params( ral, &lora_mod_params ) );
 
@@ -162,6 +103,8 @@ int lgw_radio_configure_tx( const ral_t* ral, struct lgw_pkt_tx_s* pkt_data )
         .invert_iq_is_on      = pkt_data->invert_pol,
     };
     ASSERT_RAL_RC( ral_set_lora_pkt_params( ral, &lora_pkt_params ) );
+
+    ASSERT_RAL_RC( ral_set_lora_sync_word( ral, lgw_get_lora_sync_word( pkt_data->freq_hz, pkt_data->datarate ) ) );
 
     const ral_irq_t tx_irq_mask = RAL_IRQ_TX_DONE | RAL_IRQ_RX_TIMEOUT;
     ASSERT_RAL_RC( ral_set_dio_irq_params( ral, tx_irq_mask ) );

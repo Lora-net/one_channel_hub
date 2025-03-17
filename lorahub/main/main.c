@@ -46,6 +46,7 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 
 #include "lorahub_version.h"
 #include "main_defs.h"
+#include "hw_board_defs.h"
 #include "config_nvs.h"
 
 /* -------------------------------------------------------------------------- */
@@ -53,18 +54,6 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE CONSTANTS ---------------------------------------------------- */
-
-/* Board specific constants */
-#if defined( CONFIG_SEMTECH_DEVKIT )
-#define USER_LED_GPIO 38
-#define USER_BUTTON_GPIO 0
-#elif defined( CONFIG_HELTEC_WIFI_LORA_32_V3 )
-#define USER_LED_GPIO 35
-#define USER_BUTTON_GPIO 0
-#elif defined( CONFIG_SEEED_XIAO_ESP32S3_DEVKIT )
-#define USER_LED_GPIO 48
-#define USER_BUTTON_GPIO 21
-#endif
 
 /* ESP32 logging tags */
 static const char* TAG_MAIN = "main";
@@ -96,19 +85,21 @@ static void configure_user_button( void );
 
 void wait_on_error( lorahub_error_t error, int line )
 {
-    bool led_status = true;
-
     /* Send error code to display (if available) */
     display_error_t err = { .err = error, .line = line };
     display_update_error( &err );
 
-    /* loop and blink LED forever */
-    while( 1 )
+    /* loop and blink LED for 10 seconds */
+    bool led_status = true;
+    for( int i = 0; i < 10; i++ )
     {
         led_status = !led_status;
         set_user_led( led_status );
         vTaskDelay( 1000 / portTICK_PERIOD_MS );
     };
+
+    /* Reset the ESP32 */
+    esp_restart( );
 }
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -190,7 +181,7 @@ void app_main( )
     i = pthread_create( &thrid_display, NULL, ( void* ( * ) ( void* ) ) thread_display, NULL );
     if( i != 0 )
     {
-        ESP_LOGE( TAG_MAIN, "ERROR: [main] impossible to create display thread\n" );
+        ESP_LOGE( TAG_MAIN, "ERROR: [main] impossible to create display thread" );
         wait_on_error( LRHB_ERROR_OS, __LINE__ );
     }
 
@@ -205,6 +196,15 @@ void app_main( )
 
     /* Initialize NVS to store WiFi configuration */
     ESP_ERROR_CHECK( nvs_flash_init( ) );
+
+    /* Load configuration from NVS */
+#ifdef CONFIG_GET_CFG_FROM_FLASH
+    esp_err = lgw_nvs_load_config( );
+    if( esp_err != ESP_OK )
+    {
+        ESP_LOGW( TAG_MAIN, "WARNING: [main] failed to load config from NVS" );
+    }
+#endif
 
     /* Initialize the underlying TCP/IP stack */
     ESP_ERROR_CHECK( esp_netif_init( ) );
@@ -233,7 +233,7 @@ void app_main( )
     i = wifi_sta_init( reset_wifi_provisioning );
     if( i != 0 )
     {
-        ESP_LOGE( TAG_MAIN, "ERROR: failed to initialize WiFi station\n" );
+        ESP_LOGE( TAG_MAIN, "ERROR: failed to initialize WiFi station" );
         wait_on_error( LRHB_ERROR_WIFI, __LINE__ );
     }
 
@@ -243,36 +243,11 @@ void app_main( )
     /* Initialize SNTP to get time from network */
     if( wifi_get_status( ) == WIFI_STATUS_CONNECTED )
     {
-        /* Configure LNS address and port from NVS */
-#ifdef CONFIG_GET_CFG_FROM_FLASH
-        ESP_LOGI( TAG_MAIN, "Get SNTP sever address from NVS\n" );
+        /* Get SNTP server address from loaded config */
+        const lgw_nvs_cfg_t* nvs_cfg;
+        lgw_nvs_get_config( &nvs_cfg );
+        snprintf( ntp_serv_addr, sizeof( ntp_serv_addr ), "%s", nvs_cfg->sntp_address );
 
-        /* Get configuration from NVS */
-        printf( "Opening Non-Volatile Storage (NVS) handle for reading... " );
-        nvs_handle_t my_handle;
-        esp_err = nvs_open( "storage", NVS_READONLY, &my_handle );
-        if( esp_err != ESP_OK )
-        {
-            printf( "Error (%s) opening NVS handle!\n", esp_err_to_name( esp_err ) );
-        }
-        else
-        {
-            printf( "Done\n" );
-
-            size_t size = sizeof( ntp_serv_addr );
-            esp_err     = nvs_get_str( my_handle, CFG_NVS_KEY_SNTP_ADDRESS, ntp_serv_addr, &size );
-            if( esp_err == ESP_OK )
-            {
-                printf( "NVS -> %s = %s\n", CFG_NVS_KEY_SNTP_ADDRESS, ntp_serv_addr );
-            }
-            else
-            {
-                printf( "Failed to get %s from NVS - %s\n", CFG_NVS_KEY_SNTP_ADDRESS, esp_err_to_name( esp_err ) );
-            }
-        }
-        nvs_close( my_handle );
-        printf( "Closed NVS handle for reading.\n" );
-#endif  // CONFIG_GET_CFG_FROM_FLASH
         ESP_LOGI( TAG_MAIN, "Initializing SNTP from %s...", ntp_serv_addr );
         esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG( ntp_serv_addr );
         esp_netif_sntp_init( &config );
@@ -282,7 +257,7 @@ void app_main( )
         }
         else
         {
-            ESP_LOGI( TAG_MAIN, "SNTP initialized." );
+            ESP_LOGI( TAG_MAIN, "SNTP initialized" );
         }
     }
 
@@ -306,7 +281,7 @@ void app_main( )
     /* no need to clean anything as we will restart ;) */
     /* ----------------------------------------------- */
 
-    ESP_LOGI( TAG_MAIN, "INFO: Exiting LoRaHUB\n" );
+    ESP_LOGI( TAG_MAIN, "INFO: Exiting LoRaHUB" );
 
     /* Reset the ESP32 */
     esp_restart( );

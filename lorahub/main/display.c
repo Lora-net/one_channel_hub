@@ -32,6 +32,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #include "display.h"
 #include "wifi.h"
 
+#include "hw_board_defs.h"
+
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE MACROS ------------------------------------------------------- */
 
@@ -41,9 +43,6 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 /* I2C/OLED display */
 #define I2C_HOST 0
 #define EXAMPLE_LCD_PIXEL_CLOCK_HZ ( 400 * 1000 )
-#define EXAMPLE_PIN_NUM_SDA 17
-#define EXAMPLE_PIN_NUM_SCL 18
-#define EXAMPLE_PIN_NUM_RST 21
 #define EXAMPLE_I2C_HW_ADDR 0x3C
 #define EXAMPLE_LCD_CMD_BITS 8  // Bit number used to represent command and parameter
 #define EXAMPLE_LCD_H_RES 128
@@ -80,9 +79,7 @@ static bool flag_refresh_last_rx_packet = false;
 static display_status_t disp_status = DISPLAY_STATUS_UNKNOWN;
 
 /* Channel configuration to be sent to display */
-display_channel_conf_t disp_chan_cfg = { .freq_hz  = CONFIG_CHANNEL_FREQ_HZ,
-                                         .datarate = CONFIG_CHANNEL_LORA_DATARATE,
-                                         .bw_khz   = CONFIG_CHANNEL_LORA_BANDWIDTH };
+display_channel_conf_t disp_chan_cfg = { 0 };
 
 /* RX/TX statistics to be sent to display */
 static display_stats_t disp_stats = { 0 };
@@ -91,7 +88,7 @@ static display_stats_t disp_stats = { 0 };
 static display_connection_info_t disp_connection = { 0 };
 
 /* Last received packet information to be sent to display */
-static display_last_rx_packet_t disp_last_rx_pkt = { .devaddr = 0, .rssi = 0, .snr = 0 };
+static display_last_rx_packet_t disp_last_rx_pkt = { 0 };
 
 /* Fatal error to be sent to display */
 static display_error_t disp_error = { .err = LRHB_ERROR_NONE, .line = 0 };
@@ -110,8 +107,8 @@ void display_init( void )
     ESP_LOGI( TAG_DISP, "Initialize I2C bus for OLED display" );
     i2c_config_t i2c_conf = {
         .mode             = I2C_MODE_MASTER,
-        .sda_io_num       = EXAMPLE_PIN_NUM_SDA,
-        .scl_io_num       = EXAMPLE_PIN_NUM_SCL,
+        .sda_io_num       = OLED_DISPLAY_PIN_NUM_SDA,
+        .scl_io_num       = OLED_DISPLAY_PIN_NUM_SCL,
         .sda_pullup_en    = GPIO_PULLUP_ENABLE,
         .scl_pullup_en    = GPIO_PULLUP_ENABLE,
         .master.clk_speed = EXAMPLE_LCD_PIXEL_CLOCK_HZ,
@@ -134,7 +131,7 @@ void display_init( void )
     esp_lcd_panel_handle_t     panel_handle = NULL;
     esp_lcd_panel_dev_config_t panel_config = {
         .bits_per_pixel = 1,
-        .reset_gpio_num = EXAMPLE_PIN_NUM_RST,
+        .reset_gpio_num = OLED_DISPLAY_PIN_NUM_RST,
     };
     ESP_ERROR_CHECK( esp_lcd_new_panel_ssd1306( io_handle, &panel_config, &panel_handle ) );
     ESP_ERROR_CHECK( esp_lcd_panel_reset( panel_handle ) );
@@ -202,7 +199,7 @@ void display_init( void )
         if( label_line3 != NULL )
         {
             lv_label_set_text( label_line3, "" );
-            lv_label_set_long_mode( label_line3, LV_LABEL_LONG_CLIP );
+            lv_label_set_long_mode( label_line3, LV_LABEL_LONG_SCROLL_CIRCULAR );
             lv_obj_set_width( label_line3, oled_disp->driver->hor_res );
             lv_obj_align( label_line3, LV_ALIGN_TOP_MID, 0, offset_y );
         }
@@ -230,7 +227,7 @@ void display_init( void )
         if( label_line5 != NULL )
         {
             lv_label_set_text( label_line5, "" );
-            lv_label_set_long_mode( label_line5, LV_LABEL_LONG_CLIP );
+            lv_label_set_long_mode( label_line5, LV_LABEL_LONG_SCROLL_CIRCULAR );
             lv_obj_set_width( label_line5, oled_disp->driver->hor_res );
             lv_obj_align( label_line5, LV_ALIGN_TOP_MID, 0, offset_y );
         }
@@ -328,8 +325,13 @@ void display_refresh( void )
     /* Line 3: channel configuration */
     if( label_line3 != NULL && flag_refresh_chan_cfg == true )
     {
-        snprintf( label_str, sizeof label_str, "%.4lf  SF%u %u", ( double ) ( disp_chan_cfg.freq_hz ) / 1e6,
-                  ( uint8_t ) disp_chan_cfg.datarate, disp_chan_cfg.bw_khz );
+#if defined( CONFIG_RADIO_TYPE_LR1121 )
+        snprintf( label_str, sizeof label_str, "%.4lf  SF%u-SF%u BW%u", ( double ) ( disp_chan_cfg.freq_hz ) / 1e6,
+                  disp_chan_cfg.datarate[0], disp_chan_cfg.datarate[1], disp_chan_cfg.bw_khz );
+#else
+        snprintf( label_str, sizeof label_str, "%.4lf  SF%u BW%u", ( double ) ( disp_chan_cfg.freq_hz ) / 1e6,
+                  disp_chan_cfg.datarate[0], disp_chan_cfg.bw_khz );
+#endif
         lv_label_set_text( label_line3, label_str );
         flag_refresh_chan_cfg = false;
     }
@@ -350,8 +352,8 @@ void display_refresh( void )
             /* No error : display last packet info */
             if( flag_refresh_last_rx_packet == true )
             {
-                snprintf( label_str, sizeof label_str, "%08lX %d %d", disp_last_rx_pkt.devaddr,
-                          ( int16_t ) disp_last_rx_pkt.rssi, ( int8_t ) disp_last_rx_pkt.snr );
+                snprintf( label_str, sizeof label_str, "%08lX sf:%u rssi:%d snr:%d", disp_last_rx_pkt.devaddr,
+                          disp_last_rx_pkt.sf, ( int16_t ) disp_last_rx_pkt.rssi, ( int8_t ) disp_last_rx_pkt.snr );
                 lv_label_set_text( label_line5, label_str );
                 flag_refresh_last_rx_packet = false;
             }
@@ -396,9 +398,7 @@ void display_update_statistics( const display_stats_t* stats )
 
 void display_update_last_rx_packet( const display_last_rx_packet_t* last_pkt )
 {
-    disp_last_rx_pkt.devaddr = last_pkt->devaddr;
-    disp_last_rx_pkt.rssi    = last_pkt->rssi;
-    disp_last_rx_pkt.snr     = last_pkt->snr;
+    memcpy( &disp_last_rx_pkt, last_pkt, sizeof( display_last_rx_packet_t ) );
 
     flag_refresh_last_rx_packet = true;
 }
@@ -407,7 +407,7 @@ void display_update_last_rx_packet( const display_last_rx_packet_t* last_pkt )
 
 void display_update_connection_info( const display_connection_info_t* info )
 {
-    disp_connection.gateway_id = info->gateway_id;
+    memcpy( &disp_connection, info, sizeof( display_connection_info_t ) );
 
     flag_refresh_connection = true;
 }
@@ -416,9 +416,7 @@ void display_update_connection_info( const display_connection_info_t* info )
 
 void display_update_channel_config( const display_channel_conf_t* chan_cfg )
 {
-    disp_chan_cfg.freq_hz  = chan_cfg->freq_hz;
-    disp_chan_cfg.datarate = chan_cfg->datarate;
-    disp_chan_cfg.bw_khz   = chan_cfg->bw_khz;
+    memcpy( &disp_chan_cfg, chan_cfg, sizeof( display_channel_conf_t ) );
 
     flag_refresh_chan_cfg = true;
 }
@@ -427,6 +425,5 @@ void display_update_channel_config( const display_channel_conf_t* chan_cfg )
 
 void display_update_error( const display_error_t* error )
 {
-    disp_error.err  = error->err;
-    disp_error.line = error->line;
+    memcpy( &disp_error, error, sizeof( display_error_t ) );
 }

@@ -33,8 +33,6 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #include <esp_log.h>
 #include <esp_pthread.h>
 
-#include <nvs_flash.h>
-
 /* Packet forwarder helpers and HAL */
 #include "pkt_fwd.h"
 #include "trace.h"
@@ -46,9 +44,9 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 /* Services */
 #include "display.h"
 #include "wifi.h"
+#include "config_nvs.h"
 
 #include "main_defs.h"
-#include "config_nvs.h"
 
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE MACROS ------------------------------------------------------- */
@@ -198,88 +196,13 @@ static int parse_radio_configuration( void )
     memset( &rxrf_conf, 0, sizeof( struct lgw_conf_rxrf_s ) );
     memset( &rxif_conf, 0, sizeof( struct lgw_conf_rxif_s ) );
 
-    /* Initialize configuration from menuconfig info */
-    ESP_LOGI( TAG_PKT_FWD, "Get channel configuration from menuconfig" );
-    rxrf_conf.freq_hz  = CONFIG_CHANNEL_FREQ_HZ;
-    rxif_conf.datarate = CONFIG_CHANNEL_LORA_DATARATE;
-    bw                 = CONFIG_CHANNEL_LORA_BANDWIDTH;
-
-    /* Overwrite from NVS data if available */
-#ifdef CONFIG_GET_CFG_FROM_FLASH
-    esp_err_t err = ESP_OK;
-
-    ESP_LOGI( TAG_PKT_FWD, "Get channel configuration from NVS" );
-
-    /* Get configuration from NVS */
-    printf( "Opening Non-Volatile Storage (NVS) handle for reading... " );
-    nvs_handle_t my_handle;
-    err = nvs_open( "storage", NVS_READONLY, &my_handle );
-    if( err != ESP_OK )
-    {
-        printf( "Error (%s) opening NVS handle!\n", esp_err_to_name( err ) );
-    }
-    else
-    {
-        printf( "Done\n" );
-
-        err = nvs_get_u32( my_handle, CFG_NVS_KEY_CHAN_FREQ, &( rxrf_conf.freq_hz ) );
-        if( err == ESP_OK )
-        {
-            printf( "NVS -> %s = %" PRIu32 "hz\n", CFG_NVS_KEY_CHAN_FREQ, rxrf_conf.freq_hz );
-            /* sanity check */
-            if( ( rxrf_conf.freq_hz < 150000000 ) || ( rxrf_conf.freq_hz > 960000000 ) )
-            {
-                ESP_LOGE( TAG_PKT_FWD, "ERROR: wrong channel frequency configuration from NVS, set to %" PRIu32 "hz\n",
-                          ( uint32_t ) CONFIG_CHANNEL_FREQ_HZ );
-                rxrf_conf.freq_hz = CONFIG_CHANNEL_FREQ_HZ;
-            }
-        }
-        else
-        {
-            printf( "Failed to get %s from NVS - %s\n", CFG_NVS_KEY_CHAN_FREQ, esp_err_to_name( err ) );
-        }
-
-        err = nvs_get_u32( my_handle, CFG_NVS_KEY_CHAN_DR, &( rxif_conf.datarate ) );
-        if( err == ESP_OK )
-        {
-            printf( "NVS -> %s = %" PRIu32 "\n", CFG_NVS_KEY_CHAN_DR, rxif_conf.datarate );
-            /* sanity check */
-            if( ( rxif_conf.datarate < 7 ) || ( rxif_conf.datarate > 12 ) )
-            {
-                ESP_LOGE( TAG_PKT_FWD, "ERROR: wrong channel datarate configuration from NVS, set to %" PRIu32 "\n",
-                          ( uint32_t ) CONFIG_CHANNEL_LORA_DATARATE );
-                rxif_conf.datarate = CONFIG_CHANNEL_LORA_DATARATE;
-            }
-        }
-        else
-        {
-            printf( "Failed to get %s from NVS - %s\n", CFG_NVS_KEY_CHAN_DR, esp_err_to_name( err ) );
-        }
-
-        err = nvs_get_u16( my_handle, CFG_NVS_KEY_CHAN_BW, &bw );
-        if( err == ESP_OK )
-        {
-            printf( "NVS -> %s = %" PRIu16 "khz\n", CFG_NVS_KEY_CHAN_BW, bw );
-            /* sanity check */
-            if( ( bw != 125 ) && ( bw != 250 ) && ( bw != 500 ) )
-            {
-                ESP_LOGE( TAG_PKT_FWD, "ERROR: wrong channel bandwidth configuration from NVS, set to %" PRIu16 "khz\n",
-                          ( uint16_t ) CONFIG_CHANNEL_LORA_BANDWIDTH );
-                bw = CONFIG_CHANNEL_LORA_BANDWIDTH;
-            }
-        }
-        else
-        {
-            printf( "Failed to get %s from NVS - %s\n", CFG_NVS_KEY_CHAN_BW, esp_err_to_name( err ) );
-        }
-    }
-    nvs_close( my_handle );
-    printf( "Closed NVS handle for reading.\n" );
-#endif
-
-    /* Update OLED display with channel config */
-    display_channel_conf_t chan_cfg = { .freq_hz = rxrf_conf.freq_hz, .datarate = rxif_conf.datarate, .bw_khz = bw };
-    display_update_channel_config( &chan_cfg );
+    /* Configure channel from loaded config */
+    const lgw_nvs_cfg_t* nvs_cfg;
+    lgw_nvs_get_config( &nvs_cfg );
+    rxrf_conf.freq_hz     = nvs_cfg->chan_freq_hz;
+    rxif_conf.datarate[0] = nvs_cfg->chan_datarate_1;
+    rxif_conf.datarate[1] = nvs_cfg->chan_datarate_2;
+    bw                    = nvs_cfg->chan_bandwidth_khz;
 
     /* Radio config */
     /* rxrf_conf.freq_hz DONE above*/
@@ -300,6 +223,7 @@ static int parse_radio_configuration( void )
     /* rxif_conf.datarate DONE above */
     switch( bw )
     {
+    /* Sub-Ghz bandwidths */
     case 125:
         rxif_conf.bandwidth = BW_125KHZ;
         break;
@@ -309,17 +233,45 @@ static int parse_radio_configuration( void )
     case 500:
         rxif_conf.bandwidth = BW_500KHZ;
         break;
+    /* 2.4GHz bandwidths */
+    case 200:
+        rxif_conf.bandwidth = BW_200KHZ;
+        break;
+    case 400:
+        rxif_conf.bandwidth = BW_400KHZ;
+        break;
+    case 800:
+        rxif_conf.bandwidth = BW_800KHZ;
+        break;
     default:
         ESP_LOGE( TAG_PKT_FWD, "ERROR: bandwidth configuration not supported %d\n", CONFIG_CHANNEL_LORA_BANDWIDTH );
         return -1;
     }
-    rxif_conf.coderate = CR_LORA_4_5;
-    err_lgw            = lgw_rxif_setconf( &rxif_conf );
+    /* Set coding rate according to current LoRaWAN regions specification */
+    if( rxrf_conf.freq_hz >= 2400000000 )
+    {
+        /* For 2.4GHz */
+        rxif_conf.coderate = CR_LORA_LI_4_8;
+    }
+    else
+    {
+        /* For Sub-GHz */
+        rxif_conf.coderate = CR_LORA_4_5;
+    }
+    err_lgw = lgw_rxif_setconf( &rxif_conf );
     if( err_lgw != LGW_HAL_SUCCESS )
     {
         ESP_LOGE( TAG_PKT_FWD, "ERROR: lgw_rxif_setconf() failed\n" );
         return -1;
     }
+
+    /* Update OLED display with channel config */
+    display_channel_conf_t chan_cfg = { 0 };
+    chan_cfg.freq_hz                = rxrf_conf.freq_hz;
+    chan_cfg.datarate[0]            = rxif_conf.datarate[0];
+    chan_cfg.datarate[1]            = rxif_conf.datarate[1];
+    chan_cfg.bw_khz                 = bw;
+    display_update_channel_config( &chan_cfg );
 
     return 0;
 }
@@ -350,53 +302,14 @@ static int parse_gateway_configuration( void )
 #endif
     ESP_LOGI( TAG_PKT_FWD, "Gateway ID: 0x%08llX", lgwm );
 
-    ESP_LOGI( TAG_PKT_FWD, "INFO: Auto-quit after %lu non-acknowledged PULL_DATA\n", autoquit_threshold );
+    ESP_LOGI( TAG_PKT_FWD, "INFO: Auto-quit after %lu non-acknowledged PULL_DATA", autoquit_threshold );
 
-    /* Configure LNS address and port from NVS */
-#ifdef CONFIG_GET_CFG_FROM_FLASH
-    esp_err_t err = ESP_OK;
-
-    ESP_LOGI( TAG_PKT_FWD, "Get gateway configuration from NVS" );
-
-    /* Get configuration from NVS */
-    printf( "Opening Non-Volatile Storage (NVS) handle for reading... " );
-    nvs_handle_t my_handle;
-    err = nvs_open( "storage", NVS_READONLY, &my_handle );
-    if( err != ESP_OK )
-    {
-        printf( "Error (%s) opening NVS handle!\n", esp_err_to_name( err ) );
-    }
-    else
-    {
-        printf( "Done\n" );
-
-        size_t size = sizeof( serv_addr );
-        err         = nvs_get_str( my_handle, CFG_NVS_KEY_LNS_ADDRESS, serv_addr, &size );
-        if( err == ESP_OK )
-        {
-            printf( "NVS -> %s = %s\n", CFG_NVS_KEY_LNS_ADDRESS, serv_addr );
-        }
-        else
-        {
-            printf( "Failed to get %s from NVS - %s\n", CFG_NVS_KEY_LNS_ADDRESS, esp_err_to_name( err ) );
-        }
-
-        uint16_t lns_port;
-        err = nvs_get_u16( my_handle, CFG_NVS_KEY_LNS_PORT, &lns_port );
-        if( err == ESP_OK )
-        {
-            printf( "NVS -> %s = %" PRIu16 "\n", CFG_NVS_KEY_LNS_PORT, lns_port );
-            snprintf( serv_port_up, sizeof serv_port_up, "%" PRIu16, lns_port );
-            snprintf( serv_port_down, sizeof serv_port_down, "%" PRIu16, lns_port );
-        }
-        else
-        {
-            printf( "Failed to get %s from NVS - %s\n", CFG_NVS_KEY_LNS_PORT, esp_err_to_name( err ) );
-        }
-    }
-    nvs_close( my_handle );
-    printf( "Closed NVS handle for reading.\n" );
-#endif
+    /* Configure LNS address and port from loaded config */
+    const lgw_nvs_cfg_t* nvs_cfg;
+    lgw_nvs_get_config( &nvs_cfg );
+    snprintf( serv_addr, sizeof( serv_addr ), "%s", nvs_cfg->lns_address );
+    snprintf( serv_port_up, sizeof( serv_port_up ), "%" PRIu16, nvs_cfg->lns_port );
+    snprintf( serv_port_down, sizeof( serv_port_down ), "%" PRIu16, nvs_cfg->lns_port );
 
     return 0;
 }
@@ -682,7 +595,7 @@ void thread_up( void )
             default:
                 ESP_LOGW( TAG_UP,
                           "WARNING: [up] received packet with unknown status %u (size %u, modulation %u, BW %u, DR "
-                          "%lu, RSSI %.1f)\n",
+                          "%u, RSSI %.1f)\n",
                           p->status, p->size, p->modulation, p->bandwidth, p->datarate, p->rssic );
                 pthread_mutex_unlock( &mx_meas_up );
                 continue; /* skip that packet */
@@ -808,13 +721,14 @@ void thread_up( void )
                     buff_index += 13;
                     break;
                 default:
-                    ESP_LOGE( TAG_UP, "ERROR: [up] lora packet with unknown datarate 0x%02lX\n", p->datarate );
+                    ESP_LOGE( TAG_UP, "ERROR: [up] lora packet with unknown datarate 0x%02X\n", p->datarate );
                     memcpy( ( void* ) ( buff_up + buff_index ), ( void* ) ",\"datr\":\"SF?", 12 );
                     buff_index += 12;
                     wait_on_error( LRHB_ERROR_UNKNOWN, __LINE__ );
                 }
                 switch( p->bandwidth )
                 {
+                /* Sub-Ghz bandwidths */
                 case BW_125KHZ:
                     memcpy( ( void* ) ( buff_up + buff_index ), ( void* ) "BW125\"", 6 );
                     buff_index += 6;
@@ -825,6 +739,19 @@ void thread_up( void )
                     break;
                 case BW_500KHZ:
                     memcpy( ( void* ) ( buff_up + buff_index ), ( void* ) "BW500\"", 6 );
+                    buff_index += 6;
+                    break;
+                /* 2.4Ghz bandwidth */
+                case BW_200KHZ:
+                    memcpy( ( void* ) ( buff_up + buff_index ), ( void* ) "BW203\"", 6 );
+                    buff_index += 6;
+                    break;
+                case BW_400KHZ:
+                    memcpy( ( void* ) ( buff_up + buff_index ), ( void* ) "BW406\"", 6 );
+                    buff_index += 6;
+                    break;
+                case BW_800KHZ:
+                    memcpy( ( void* ) ( buff_up + buff_index ), ( void* ) "BW812\"", 6 );
                     buff_index += 6;
                     break;
                 default:
@@ -852,6 +779,18 @@ void thread_up( void )
                 case CR_LORA_4_8:
                     memcpy( ( void* ) ( buff_up + buff_index ), ( void* ) ",\"codr\":\"4/8\"", 13 );
                     buff_index += 13;
+                    break;
+                case CR_LORA_LI_4_5:
+                    memcpy( ( void* ) ( buff_up + buff_index ), ( void* ) ",\"codr\":\"4/5LI\"", 15 );
+                    buff_index += 15;
+                    break;
+                case CR_LORA_LI_4_6:
+                    memcpy( ( void* ) ( buff_up + buff_index ), ( void* ) ",\"codr\":\"4/6LI\"", 15 );
+                    buff_index += 15;
+                    break;
+                case CR_LORA_LI_4_8:
+                    memcpy( ( void* ) ( buff_up + buff_index ), ( void* ) ",\"codr\":\"4/8LI\"", 15 );
+                    buff_index += 15;
                     break;
                 case 0: /* treat the CR0 case (mostly false sync) */
                     memcpy( ( void* ) ( buff_up + buff_index ), ( void* ) ",\"codr\":\"OFF\"", 13 );
@@ -1023,9 +962,9 @@ void thread_up( void )
             display_stats_t rx_tx_stats = { .nb_rx = nb_pkt, .nb_tx = 0 };
             display_update_statistics( &rx_tx_stats );
 
-            display_last_rx_packet_t last_rx_pkt = { .devaddr = mote_addr,
-                                                     .rssi    = rxpkt[0].rssic,
-                                                     .snr     = rxpkt[0].snr };
+            display_last_rx_packet_t last_rx_pkt = {
+                .devaddr = mote_addr, .rssi = rxpkt[0].rssic, .snr = rxpkt[0].snr, .sf = rxpkt[0].datarate
+            };
             display_update_last_rx_packet( &last_rx_pkt );
         }
     }
@@ -1340,6 +1279,7 @@ void thread_down( void )
                 }
                 switch( x1 )
                 {
+                /* Sub-Ghz bandwidths */
                 case 125:
                     txpkt.bandwidth = BW_125KHZ;
                     break;
@@ -1348,6 +1288,19 @@ void thread_down( void )
                     break;
                 case 500:
                     txpkt.bandwidth = BW_500KHZ;
+                    break;
+                /* 2.4Ghz bandwidth */
+                case 200:
+                case 203:
+                    txpkt.bandwidth = BW_200KHZ;
+                    break;
+                case 400:
+                case 406:
+                    txpkt.bandwidth = BW_400KHZ;
+                    break;
+                case 800:
+                case 812:
+                    txpkt.bandwidth = BW_800KHZ;
                     break;
                 default:
                     ESP_LOGW( TAG_DOWN, "WARNING: [down] format error in \"txpk.datr\", invalid BW, TX aborted\n" );
@@ -1375,6 +1328,12 @@ void thread_down( void )
                     txpkt.coderate = CR_LORA_4_8;
                 else if( strcmp( str, "1/2" ) == 0 )
                     txpkt.coderate = CR_LORA_4_8;
+                else if( strcmp( str, "4/5LI" ) == 0 )
+                    txpkt.coderate = CR_LORA_LI_4_5;
+                else if( strcmp( str, "4/6LI" ) == 0 )
+                    txpkt.coderate = CR_LORA_LI_4_6;
+                else if( ( strcmp( str, "4/7LI" ) == 0 ) || ( strcmp( str, "4/8LI" ) == 0 ) )
+                    txpkt.coderate = CR_LORA_LI_4_8;
                 else
                 {
                     ESP_LOGW( TAG_DOWN, "WARNING: [down] format error in \"txpk.codr\", TX aborted\n" );

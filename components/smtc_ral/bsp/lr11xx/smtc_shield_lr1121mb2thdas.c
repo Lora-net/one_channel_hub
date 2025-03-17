@@ -1,7 +1,7 @@
 /*!
- * @file      smtc_shield_lr1121mb1dis.c
+ * @file      smtc_shield_lr1121mb2thdas.c
  *
- * @brief     Implementation specific to LR1121MB1DIS shield
+ * @brief     Implementation specific to LR1121MB2THDAS shield
  *
  * The Clear BSD License
  * Copyright Semtech Corporation 2022. All rights reserved.
@@ -40,316 +40,247 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
+
 #include "smtc_shield_lr11xx_types.h"
 #include "smtc_shield_lr11xx_common.h"
-#include "smtc_shield_lr11x1_common.h"
 
 /*
  * -----------------------------------------------------------------------------
  * --- PRIVATE MACROS-----------------------------------------------------------
  */
 
+#define SMTC_SHIELD_LR1121MB2THDAS_MIN_PWR -9
+#define SMTC_SHIELD_LR1121MB2THDAS_MAX_PWR 22
+
 /*
  * -----------------------------------------------------------------------------
  * --- PRIVATE CONSTANTS -------------------------------------------------------
  */
 
-const smtc_shield_lr11xx_pa_pwr_cfg_t smtc_shield_lr1121mb1dis_pa_pwr_cfg_table[SMTC_SHIELD_LR11XX_MAX_PWR - SMTC_SHIELD_LR11XX_MIN_PWR + 1] = {
-    { // Expected output power = -17dBm
-        .power = -15,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = -16dBm
-        .power = -14,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = -15dBm
-        .power = -13,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = -14dBm
-        .power = -12,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = -13dBm
-        .power = -11,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = -12dBm
-        .power = -9,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = -11dBm
-        .power = -8,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = -10dBm
-        .power = -7,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
+const smtc_shield_lr11xx_pa_pwr_cfg_t smtc_shield_lr1121mb2thdas_pa_pwr_cfg_table[SMTC_SHIELD_LR1121MB2THDAS_MAX_PWR - SMTC_SHIELD_LR1121MB2THDAS_MIN_PWR + 1] = {
     { // Expected output power = -9dBm
-        .power = -6,
+        .power = 7,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
             .pa_duty_cycle = 0x00,
             .pa_hp_sel     = 0x00,
         },
     },
     { // Expected output power = -8dBm
-        .power = -5,
+        .power = 8,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
             .pa_duty_cycle = 0x00,
             .pa_hp_sel     = 0x00,
         },
     },
     { // Expected output power = -7dBm
-        .power = -4,
+        .power = 9,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
             .pa_duty_cycle = 0x00,
             .pa_hp_sel     = 0x00,
         },
     },
     { // Expected output power = -6dBm
-        .power = -3,
+        .power = 10,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
             .pa_duty_cycle = 0x00,
             .pa_hp_sel     = 0x00,
         },
     },
     { // Expected output power = -5dBm
-        .power = -2,
+        .power = 11,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
             .pa_duty_cycle = 0x00,
             .pa_hp_sel     = 0x00,
         },
     },
     { // Expected output power = -4dBm
-        .power = -1,
+        .power = 13,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
             .pa_duty_cycle = 0x00,
             .pa_hp_sel     = 0x00,
         },
     },
     { // Expected output power = -3dBm
-        .power = 0,
+        .power = 18,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
             .pa_duty_cycle = 0x00,
             .pa_hp_sel     = 0x00,
         },
     },
     { // Expected output power = -2dBm
-        .power = 1,
+        .power = 20,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
             .pa_duty_cycle = 0x00,
             .pa_hp_sel     = 0x00,
         },
     },
     { // Expected output power = -1dBm
-        .power = 2,
+        .power = 19,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x01,
             .pa_hp_sel     = 0x00,
         },
     },
     { // Expected output power = 0dBm
-        .power = 3,
+        .power = 21,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
             .pa_duty_cycle = 0x00,
             .pa_hp_sel     = 0x00,
         },
     },
     { // Expected output power = 1dBm
-        .power = 3,
+        .power = 20,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x01,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x02,
             .pa_hp_sel     = 0x00,
         },
     },
     { // Expected output power = 2dBm
-        .power = 4,
+        .power = 20,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x01,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    {  // Expected output power = 3dBm
-        .power = 7,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    {  // Expected output power = 4dBm
-        .power = 8,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    {  // Expected output power = 5dBm
-        .power = 9,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    {  // Expected output power = 6dBm
-        .power = 10,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    {  // Expected output power = 7dBm
-        .power = 12,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = 8dBm
-        .power = 13,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = 9dBm
-        .power = 14,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x00,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = 10dBm
-        .power = 13,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x01,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = 11dBm
-        .power = 13,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x02,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = 12dBm
-        .power = 14,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x02,
-            .pa_hp_sel     = 0x00,
-        },
-    },
-    { // Expected output power = 13dBm
-        .power = 14,
-        .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
             .pa_duty_cycle = 0x03,
             .pa_hp_sel     = 0x00,
         },
     },
-    { // Expected output power = 14dBm
-        .power = 14,
+    {  // Expected output power = 3dBm
+        .power = 21,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x02,
+            .pa_hp_sel     = 0x00,
+        },
+    },
+    {  // Expected output power = 4dBm
+        .power = 22,
+        .pa_config = {
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x01,
+            .pa_hp_sel     = 0x00,
+        },
+    },
+    {  // Expected output power = 5dBm
+        .power = 22,
+        .pa_config = {
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x02,
+            .pa_hp_sel     = 0x00,
+        },
+    },
+    {  // Expected output power = 6dBm
+        .power = 22,
+        .pa_config = {
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x03,
+            .pa_hp_sel     = 0x00,
+        },
+    },
+    {  // Expected output power = 7dBm
+        .power = 22,
+        .pa_config = {
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
             .pa_duty_cycle = 0x04,
             .pa_hp_sel     = 0x00,
         },
     },
-    { // Expected output power = 15dBm
-        .power = 14,
+    { // Expected output power = 8dBm
+        .power = 22,
         .pa_config = {
-            .pa_sel        = LR11XX_RADIO_PA_SEL_LP,
-            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VREG,
-            .pa_duty_cycle = 0x07,
-            .pa_hp_sel     = 0x00,
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x00,
+            .pa_hp_sel     = 0x01,
+        },
+    },
+    { // Expected output power = 9dBm
+        .power = 21,
+        .pa_config = {
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x00,
+            .pa_hp_sel     = 0x02,
+        },
+    },
+    { // Expected output power = 10dBm
+        .power = 21,
+        .pa_config = {
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x03,
+            .pa_hp_sel     = 0x01,
+        },
+    },
+    { // Expected output power = 11dBm
+        .power = 22,
+        .pa_config = {
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x03,
+            .pa_hp_sel     = 0x01,
+        },
+    },
+    { // Expected output power = 12dBm
+        .power = 22,
+        .pa_config = {
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x01,
+            .pa_hp_sel     = 0x02,
+        },
+    },
+    { // Expected output power = 13dBm
+        .power = 22,
+        .pa_config = {
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x02,
+            .pa_hp_sel     = 0x02,
+        },
+    },
+    { // Expected output power = 14dBm
+        .power = 22,
+        .pa_config = {
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x01,
+            .pa_hp_sel     = 0x03,
+        },
+    },
+    { // Expected output power = 15dBm
+        .power = 22,
+        .pa_config = {
+            .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
+            .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
+            .pa_duty_cycle = 0x02,
+            .pa_hp_sel     = 0x03,
         },
     },
     { // Expected output power = 16dBm
@@ -357,8 +288,8 @@ const smtc_shield_lr11xx_pa_pwr_cfg_t smtc_shield_lr1121mb1dis_pa_pwr_cfg_table[
         .pa_config = {
             .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
             .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
-            .pa_duty_cycle = 0x01,
-            .pa_hp_sel     = 0x04,
+            .pa_duty_cycle = 0x03,
+            .pa_hp_sel     = 0x03,
         },
     },
     { // Expected output power = 17dBm
@@ -366,8 +297,8 @@ const smtc_shield_lr11xx_pa_pwr_cfg_t smtc_shield_lr1121mb1dis_pa_pwr_cfg_table[
         .pa_config = {
             .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
             .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
-            .pa_duty_cycle = 0x02,
-            .pa_hp_sel     = 0x04,
+            .pa_duty_cycle = 0x00,
+            .pa_hp_sel     = 0x07,
         },
     },
     { // Expected output power = 18dBm
@@ -375,8 +306,8 @@ const smtc_shield_lr11xx_pa_pwr_cfg_t smtc_shield_lr1121mb1dis_pa_pwr_cfg_table[
         .pa_config = {
             .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
             .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
-            .pa_duty_cycle = 0x01,
-            .pa_hp_sel     = 0x06,
+            .pa_duty_cycle = 0x02,
+            .pa_hp_sel     = 0x05,
         },
     },
     { // Expected output power = 19dBm
@@ -393,7 +324,7 @@ const smtc_shield_lr11xx_pa_pwr_cfg_t smtc_shield_lr1121mb1dis_pa_pwr_cfg_table[
         .pa_config = {
             .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
             .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
-            .pa_duty_cycle = 0x03,
+            .pa_duty_cycle = 0x02,
             .pa_hp_sel     = 0x07,
         },
     },
@@ -402,8 +333,8 @@ const smtc_shield_lr11xx_pa_pwr_cfg_t smtc_shield_lr1121mb1dis_pa_pwr_cfg_table[
         .pa_config = {
             .pa_sel        = LR11XX_RADIO_PA_SEL_HP,
             .pa_reg_supply = LR11XX_RADIO_PA_REG_SUPPLY_VBAT,
-            .pa_duty_cycle = 0x04,
-            .pa_hp_sel     = 0x06,
+            .pa_duty_cycle = 0x03,
+            .pa_hp_sel     = 0x07,
         },
     },
     { // Expected output power = 22dBm
@@ -417,7 +348,7 @@ const smtc_shield_lr11xx_pa_pwr_cfg_t smtc_shield_lr1121mb1dis_pa_pwr_cfg_table[
     },
 };
 
-const smtc_shield_lr11xx_pa_pwr_cfg_t smtc_shield_lr1121mb1dis_pa_pwr_hf_cfg_table[SMTC_SHIELD_LR112X_MAX_PWR_HF - SMTC_SHIELD_LR112X_MIN_PWR_HF + 1] = {
+const smtc_shield_lr11xx_pa_pwr_cfg_t smtc_shield_lr1121mb2thdas_pa_pwr_hf_cfg_table[SMTC_SHIELD_LR112X_MAX_PWR_HF - SMTC_SHIELD_LR112X_MIN_PWR_HF + 1] = {
     { // Expected output power = -18dBm
         .power = -18,
         .pa_config = {
@@ -711,11 +642,38 @@ const smtc_shield_lr11xx_pa_pwr_cfg_t smtc_shield_lr1121mb1dis_pa_pwr_hf_cfg_tab
 /**
  * @brief Board capabilities
  */
-const smtc_shield_lr11xx_capabilities_t smtc_shield_lr1121mb1dis_capabilities = {
-    .freq_hz_min   = SMTC_SHIELD_LR11XX_SUBGHZ_FREQ_MIN,
-    .freq_hz_max   = SMTC_SHIELD_LR11XX_SUBGHZ_FREQ_MAX,
-    .power_dbm_min = SMTC_SHIELD_LR11XX_MIN_PWR,
-    .power_dbm_max = SMTC_SHIELD_LR11XX_MAX_PWR,
+const smtc_shield_lr11xx_capabilities_t smtc_shield_lr1121mb2thdas_capabilities = {
+    .lf_freq_hz_min   = SMTC_SHIELD_LR11XX_SUBGHZ_FREQ_MIN,
+    .lf_freq_hz_max   = SMTC_SHIELD_LR11XX_SUBGHZ_FREQ_MAX,
+    .hf_freq_hz_min   = SMTC_SHIELD_LR112X_2_4GHZ_FREQ_MIN,
+    .hf_freq_hz_max   = SMTC_SHIELD_LR112X_2_4GHZ_FREQ_MAX,
+    .lf_power_dbm_min = SMTC_SHIELD_LR1121MB2THDAS_MIN_PWR,
+    .lf_power_dbm_max = SMTC_SHIELD_LR1121MB2THDAS_MAX_PWR,
+    .hf_power_dbm_min = SMTC_SHIELD_LR112X_MIN_PWR_HF,
+    .hf_power_dbm_max = SMTC_SHIELD_LR112X_MAX_PWR_HF,
+};
+
+/**
+ * @brief RF switch configuration
+ */
+const lr11xx_system_rfswitch_cfg_t smtc_shield_lr1121mb2thdas_rf_switch_cfg = {
+    .enable  = LR11XX_SYSTEM_RFSW0_HIGH | LR11XX_SYSTEM_RFSW1_HIGH | LR11XX_SYSTEM_RFSW2_HIGH,
+    .standby = 0,
+    .rx      = LR11XX_SYSTEM_RFSW0_HIGH,
+    .tx      = LR11XX_SYSTEM_RFSW0_HIGH | LR11XX_SYSTEM_RFSW1_HIGH,
+    .tx_hp   = LR11XX_SYSTEM_RFSW0_HIGH | LR11XX_SYSTEM_RFSW1_HIGH,
+    .tx_hf   = 0,
+    .gnss    = 0,
+    .wifi    = 0,
+};
+
+/**
+ * @brief XOSC configuration
+ */
+const smtc_shield_lr11xx_xosc_cfg_t smtc_shield_lr1121mb2thdas_xosc_cfg = {
+    .has_tcxo             = true,
+    .supply               = LR11XX_SYSTEM_TCXO_CTRL_3_0V,
+    .startup_time_in_tick = 300,
 };
 
 /*
@@ -743,17 +701,17 @@ const smtc_shield_lr11xx_capabilities_t smtc_shield_lr1121mb1dis_capabilities = 
  * --- PUBLIC FUNCTIONS DEFINITION ---------------------------------------------
  */
 
-const smtc_shield_lr11xx_pa_pwr_cfg_t* smtc_shield_lr1121mb1dis_get_pa_pwr_cfg( const uint32_t rf_freq_in_hz,
-                                                                                int8_t expected_output_pwr_in_dbm )
+const smtc_shield_lr11xx_pa_pwr_cfg_t* smtc_shield_lr1121mb2thdas_get_pa_pwr_cfg( const uint32_t rf_freq_in_hz,
+                                                                                  int8_t expected_output_pwr_in_dbm )
 {
     if( ( SMTC_SHIELD_LR11XX_SUBGHZ_FREQ_MIN <= rf_freq_in_hz ) &&
         ( rf_freq_in_hz <= SMTC_SHIELD_LR11XX_SUBGHZ_FREQ_MAX ) )
     {
-        if( ( SMTC_SHIELD_LR11XX_MIN_PWR <= expected_output_pwr_in_dbm ) &&
-            ( expected_output_pwr_in_dbm <= SMTC_SHIELD_LR11XX_MAX_PWR ) )
+        if( ( SMTC_SHIELD_LR1121MB2THDAS_MIN_PWR <= expected_output_pwr_in_dbm ) &&
+            ( expected_output_pwr_in_dbm <= SMTC_SHIELD_LR1121MB2THDAS_MAX_PWR ) )
         {
-            return &(
-                smtc_shield_lr1121mb1dis_pa_pwr_cfg_table[expected_output_pwr_in_dbm - SMTC_SHIELD_LR11XX_MIN_PWR] );
+            return &( smtc_shield_lr1121mb2thdas_pa_pwr_cfg_table[expected_output_pwr_in_dbm -
+                                                                  SMTC_SHIELD_LR1121MB2THDAS_MIN_PWR] );
         }
     }
     else if( ( ( SMTC_SHIELD_LR112X_2GHZ_FREQ_MIN <= rf_freq_in_hz ) &&
@@ -764,49 +722,48 @@ const smtc_shield_lr11xx_pa_pwr_cfg_t* smtc_shield_lr1121mb1dis_get_pa_pwr_cfg( 
         if( ( SMTC_SHIELD_LR112X_MIN_PWR_HF <= expected_output_pwr_in_dbm ) &&
             ( expected_output_pwr_in_dbm <= SMTC_SHIELD_LR112X_MAX_PWR_HF ) )
         {
-            return &( smtc_shield_lr1121mb1dis_pa_pwr_hf_cfg_table[expected_output_pwr_in_dbm -
-                                                                   SMTC_SHIELD_LR112X_MIN_PWR_HF] );
+            return &( smtc_shield_lr1121mb2thdas_pa_pwr_hf_cfg_table[expected_output_pwr_in_dbm -
+                                                                     SMTC_SHIELD_LR112X_MIN_PWR_HF] );
         }
     }
 
     return NULL;
 }
 
-const lr11xx_radio_rssi_calibration_table_t* smtc_shield_lr1121mb1dis_get_rssi_calibration_table(
+const lr11xx_radio_rssi_calibration_table_t* smtc_shield_lr1121mb2thdas_get_rssi_calibration_table(
     const uint32_t rf_freq_in_hz )
 {
     return smtc_shield_lr11xx_get_rssi_calibration_table( rf_freq_in_hz );
 }
 
-const lr11xx_system_rfswitch_cfg_t* smtc_shield_lr1121mb1dis_get_rf_switch_cfg( void )
+const lr11xx_system_rfswitch_cfg_t* smtc_shield_lr1121mb2thdas_get_rf_switch_cfg( void )
 {
-    return smtc_shield_lr11xx_common_get_rf_switch_cfg( );
+    return &smtc_shield_lr1121mb2thdas_rf_switch_cfg;
 }
 
-lr11xx_system_reg_mode_t smtc_shield_lr1121mb1dis_get_reg_mode( void )
+lr11xx_system_reg_mode_t smtc_shield_lr1121mb2thdas_get_reg_mode( void )
 {
     return smtc_shield_lr11xx_common_get_reg_mode( );
 }
 
-const smtc_shield_lr11xx_xosc_cfg_t* smtc_shield_lr1121mb1dis_get_xosc_cfg( void )
+const smtc_shield_lr11xx_xosc_cfg_t* smtc_shield_lr1121mb2thdas_get_xosc_cfg( void )
 {
-    return smtc_shield_lr11x1_common_get_xosc_cfg( );
+    return &smtc_shield_lr1121mb2thdas_xosc_cfg;
 }
 
-const smtc_shield_lr11xx_lfclk_cfg_t* smtc_shield_lr1121mb1dis_get_lfclk_cfg( void )
+const smtc_shield_lr11xx_lfclk_cfg_t* smtc_shield_lr1121mb2thdas_get_lfclk_cfg( void )
 {
     return smtc_shield_lr11xx_common_get_lfclk_cfg( );
 }
 
-const smtc_shield_lr11xx_pinout_t* smtc_shield_lr1121mb1dis_get_pinout( void )
+const smtc_shield_lr11xx_pinout_t* smtc_shield_lr1121mb2thdas_get_pinout( void )
 {
     return smtc_shield_lr11xx_common_get_pinout( );
 }
 
-const smtc_shield_lr11xx_capabilities_t* smtc_shield_lr1121mb1dis_get_capabilities( void )
+const smtc_shield_lr11xx_capabilities_t* smtc_shield_lr1121mb2thdas_get_capabilities( void )
 {
-    /* TODO: returned values should depend on subghz or 2.4GHz */
-    return &smtc_shield_lr1121mb1dis_capabilities;
+    return &smtc_shield_lr1121mb2thdas_capabilities;
 }
 
 /*

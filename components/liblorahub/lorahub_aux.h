@@ -25,6 +25,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #include "esp_rom_sys.h"
 #include "esp_log.h"
 
+#include "ral.h"
+
 /* -------------------------------------------------------------------------- */
 /* --- PUBLIC CONSTANTS ----------------------------------------------------- */
 
@@ -91,24 +93,19 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 /* -------------------------------------------------------------------------- */
 /* --- PUBLIC FUNCTIONS PROTOTYPES ------------------------------------------ */
 
-/**
-@brief Calculate the time on air of a LoRa packet in microseconds
-@param bw packet bandwidth
-@param sf packet spreading factor
-@param cr packet coding rate
-@param n_symbol_preamble packet preamble length (number of symbols)
-@param no_header true if packet has no header
-@param no_crc true if packet has no CRC
-@param size packet size in bytes
-@param nb_symbols pointer to return the total number of symbols in packet
-@param nb_symbols_payload pointer to return the number of symbols in packet payload
-@param t_symbol_us pointer to return the duration of a symbol in microseconds
-@return the packet time on air in microseconds
-*/
-uint32_t lora_packet_time_on_air( const uint8_t bw, const uint8_t sf, const uint8_t cr,
-                                  const uint16_t n_symbol_preamble, const bool no_header, const bool no_crc,
-                                  const uint8_t size, double* nb_symbols, uint32_t* nb_symbols_payload,
-                                  uint16_t* t_symbol_us );
+uint32_t lgw_get_lora_bw_in_hz( uint8_t bw );
+
+ral_lora_sf_t lgw_convert_hal_to_ral_sf( uint8_t sf );
+
+ral_lora_bw_t lgw_convert_hal_to_ral_bw( uint8_t bw );
+
+ral_lora_cr_t lgw_convert_hal_to_ral_cr( uint8_t cr );
+
+int lgw_check_lora_mod_params( uint32_t freq_hz, uint8_t bw, uint8_t cr );
+
+uint8_t lgw_get_lora_sync_word( uint32_t freq_hz, uint8_t sf );
+
+int lgw_check_lora_dualsf_conf( uint8_t bw, uint8_t sf1, uint8_t sf2 );
 
 #endif
 

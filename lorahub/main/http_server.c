@@ -22,7 +22,6 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #include <esp_log.h>
 
 #include <esp_http_server.h>
-#include <nvs_flash.h>
 
 #include "http_server.h"
 #include "wifi.h"
@@ -30,6 +29,7 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #include "config_nvs.h"
 
 #include "lorahub_aux.h"
+#include "lorahub_hal.h"
 
 #include "lorahub_version.h"
 
@@ -98,21 +98,22 @@ const char html_header[] =
     "</style>"
     "</head>";
 
-#define LNS_ADDRESS_STR_MAX_SIZE ( 64 )
-#define LNS_PORT_STR_MAX_SIZE ( 6 )   /* [0..65535] + \0 */
-#define CHAN_FREQ_STR_MAX_SIZE ( 12 ) /* [150.000000..960.000000] + \0 */
-#define CHAN_DR_STR_MAX_SIZE ( 4 )    /* [7..12] + \0 */
-#define CHAN_BW_STR_MAX_SIZE ( 4 )    /* [125,250,500] + \0 */
-#define SNTP_ADDRESS_STR_MAX_SIZE ( 64 )
+#define CHAN_DR_STR_MAX_SIZE ( 3 )       /* [7..12] + \0 */
+#define CHAN_BW_STR_MAX_SIZE ( 4 )       /* [125,250,500] + \0 */
+#define LNS_PORT_STR_MAX_SIZE ( 6 )      /* [0..65535] + \0 */
 #define SUBMIT_VALUE_STR_MAX_SIZE ( 10 ) /* could be "configure" or "reboot" + \0 */
+#define CHAN_FREQ_STR_MAX_SIZE ( 12 )    /* [150.000000..2500.000000] + \0 */
 
-#define FORM_FIELD_NAME_STR_MAX_SIZE CFG_NVS_KEY_STR_MAX_SIZE
-#define FORM_FIELD_NB ( 7 ) /* Update this when adding new field returned by form */
+#define FORM_FIELD_VALUE_STR_MAX_SIZE ( CHAN_FREQ_STR_MAX_SIZE ) /* Max value of the above defines */
+#define FORM_FIELD_NAME_STR_MAX_SIZE ( CFG_NVS_KEY_STR_MAX_SIZE )
+
+#define FORM_FIELD_NB ( 8 ) /* Update this when adding new field returned by form */
 /* Size of the following string must be < FORM_FIELD_REQ_STR_MAX_SIZE */
 #define FORM_FIELD_NAME_LNS_ADDRESS CFG_NVS_KEY_LNS_ADDRESS
 #define FORM_FIELD_NAME_LNS_PORT CFG_NVS_KEY_LNS_PORT
 #define FORM_FIELD_NAME_CHAN_FREQ CFG_NVS_KEY_CHAN_FREQ
-#define FORM_FIELD_NAME_CHAN_DR CFG_NVS_KEY_CHAN_DR
+#define FORM_FIELD_NAME_CHAN_DR_1 CFG_NVS_KEY_CHAN_DR_1
+#define FORM_FIELD_NAME_CHAN_DR_2 CFG_NVS_KEY_CHAN_DR_2
 #define FORM_FIELD_NAME_CHAN_BW CFG_NVS_KEY_CHAN_BW
 #define FORM_FIELD_NAME_SNTP_ADDRESS CFG_NVS_KEY_SNTP_ADDRESS
 #define FORM_FIELD_NAME_SUBMIT "submit"
@@ -120,8 +121,8 @@ const char html_header[] =
 /* Maximum size of a configuration string resulting from the html web form */
 #define FORM_FULL_CONTENT_MAX_SIZE                                                                          \
     ( ( FORM_FIELD_NB * 2 ) + ( FORM_FIELD_NB * FORM_FIELD_NAME_STR_MAX_SIZE ) + LNS_ADDRESS_STR_MAX_SIZE + \
-      LNS_PORT_STR_MAX_SIZE + CHAN_FREQ_STR_MAX_SIZE + CHAN_DR_STR_MAX_SIZE + CHAN_BW_STR_MAX_SIZE +        \
-      SNTP_ADDRESS_STR_MAX_SIZE +                                                                           \
+      LNS_PORT_STR_MAX_SIZE + CHAN_FREQ_STR_MAX_SIZE + ( LGW_MULTI_SF_NB * CHAN_DR_STR_MAX_SIZE ) +         \
+      CHAN_BW_STR_MAX_SIZE + SNTP_ADDRESS_STR_MAX_SIZE +                                                    \
       SUBMIT_VALUE_STR_MAX_SIZE ) /* sum of all fields max sizes + names + separators for each fields (=, &) */
 
 /* Maximum size of a configuration string resulting from an API call in JSON format */
@@ -157,17 +158,6 @@ typedef enum
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE VARIABLES ---------------------------------------------------- */
 
-static char     web_cfg_lns_address[LNS_ADDRESS_STR_MAX_SIZE]        = { 0 };
-static char     web_cfg_lns_port_str[LNS_PORT_STR_MAX_SIZE]          = { 0 };
-static char     web_cfg_chan_freq_mhz_str[CHAN_FREQ_STR_MAX_SIZE]    = { 0 };
-static char     web_cfg_chan_datarate_str[CHAN_DR_STR_MAX_SIZE]      = { 0 };
-static char     web_cfg_chan_bandwidth_khz_str[CHAN_BW_STR_MAX_SIZE] = { 0 };
-static uint16_t web_cfg_lns_port                                     = 0;
-static uint32_t web_cfg_chan_freq_hz                                 = 0;
-static uint32_t web_cfg_chan_datarate                                = 0;
-static uint16_t web_cfg_chan_bandwidth_khz                           = 0;
-static char     web_cfg_sntp_address[SNTP_ADDRESS_STR_MAX_SIZE]      = { 0 };
-
 static uint8_t web_inf_mac_addr[6]      = { 0 };
 static char    web_inf_mac_addr_str[18] = "unknown";
 
@@ -180,113 +170,13 @@ static char post_content_json[JSON_FULL_CONTENT_MAX_SIZE] = { 0 };
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE FUNCTIONS DEFINITION ----------------------------------------- */
 
-static esp_err_t get_config_from_nvs( void )
-{
-    esp_err_t err = ESP_OK;
-
-    /* Get default values from menuconfig (used if never set to NVS) */
-    snprintf( web_cfg_chan_freq_mhz_str, sizeof web_cfg_chan_freq_mhz_str, "%.6f",
-              ( ( double ) CONFIG_CHANNEL_FREQ_HZ / 1e6 ) ); /* hz to mhz string */
-    snprintf( web_cfg_chan_datarate_str, sizeof web_cfg_chan_datarate_str, "%" PRIu32,
-              ( uint32_t ) CONFIG_CHANNEL_LORA_DATARATE );
-    snprintf( web_cfg_chan_bandwidth_khz_str, sizeof web_cfg_chan_bandwidth_khz_str, "%" PRIu16,
-              ( uint16_t ) CONFIG_CHANNEL_LORA_BANDWIDTH );
-    snprintf( web_cfg_lns_address, sizeof web_cfg_lns_address, "%s", CONFIG_NETWORK_SERVER_ADDRESS );
-    snprintf( web_cfg_lns_port_str, sizeof web_cfg_lns_port_str, "%" PRIu16, ( uint16_t ) CONFIG_NETWORK_SERVER_PORT );
-    snprintf( web_cfg_sntp_address, sizeof web_cfg_sntp_address, "%s", CONFIG_SNTP_SERVER_ADDRESS );
-
-    /* Get configuration from NVS */
-    printf( "Opening Non-Volatile Storage (NVS) handle for reading... " );
-    nvs_handle_t my_handle;
-    err = nvs_open( "storage", NVS_READONLY, &my_handle );
-    if( err != ESP_OK )
-    {
-        ESP_LOGW( TAG_WEB, "Error (%s) opening NVS handle!\n", esp_err_to_name( err ) );
-    }
-    else
-    {
-        printf( "Done\n" );
-
-        size_t size = sizeof( web_cfg_lns_address );
-        err         = nvs_get_str( my_handle, CFG_NVS_KEY_LNS_ADDRESS, web_cfg_lns_address, &size );
-        if( err == ESP_OK )
-        {
-            printf( "NVS -> %s = %s\n", CFG_NVS_KEY_LNS_ADDRESS, web_cfg_lns_address );
-        }
-        else
-        {
-            ESP_LOGW( TAG_WEB, "Failed to get %s from NVS - %s\n", CFG_NVS_KEY_LNS_ADDRESS, esp_err_to_name( err ) );
-        }
-
-        err = nvs_get_u16( my_handle, CFG_NVS_KEY_LNS_PORT, &web_cfg_lns_port );
-        if( err == ESP_OK )
-        {
-            printf( "NVS -> %s = %" PRIu16 "\n", CFG_NVS_KEY_LNS_PORT, web_cfg_lns_port );
-            snprintf( web_cfg_lns_port_str, sizeof web_cfg_lns_port_str, "%" PRIu16, web_cfg_lns_port );
-        }
-        else
-        {
-            ESP_LOGW( TAG_WEB, "Failed to get %s from NVS - %s\n", CFG_NVS_KEY_LNS_PORT, esp_err_to_name( err ) );
-        }
-
-        err = nvs_get_u32( my_handle, CFG_NVS_KEY_CHAN_FREQ, &web_cfg_chan_freq_hz );
-        if( err == ESP_OK )
-        {
-            printf( "NVS -> %s = %" PRIu32 "hz\n", CFG_NVS_KEY_CHAN_FREQ, web_cfg_chan_freq_hz );
-            snprintf( web_cfg_chan_freq_mhz_str, sizeof web_cfg_chan_freq_mhz_str, "%.6f",
-                      ( ( double ) web_cfg_chan_freq_hz / 1e6 ) ); /* hz to mhz string */
-        }
-        else
-        {
-            ESP_LOGW( TAG_WEB, "Failed to get %s from NVS - %s\n", CFG_NVS_KEY_CHAN_FREQ, esp_err_to_name( err ) );
-        }
-
-        err = nvs_get_u32( my_handle, CFG_NVS_KEY_CHAN_DR, &web_cfg_chan_datarate );
-        if( err == ESP_OK )
-        {
-            printf( "NVS -> %s = %" PRIu32 "\n", CFG_NVS_KEY_CHAN_DR, web_cfg_chan_datarate );
-            snprintf( web_cfg_chan_datarate_str, sizeof web_cfg_chan_datarate_str, "%" PRIu32, web_cfg_chan_datarate );
-        }
-        else
-        {
-            ESP_LOGW( TAG_WEB, "Failed to get %s from NVS - %s\n", CFG_NVS_KEY_CHAN_DR, esp_err_to_name( err ) );
-        }
-
-        err = nvs_get_u16( my_handle, CFG_NVS_KEY_CHAN_BW, &web_cfg_chan_bandwidth_khz );
-        if( err == ESP_OK )
-        {
-            printf( "NVS -> %s = %" PRIu16 "khz\n", CFG_NVS_KEY_CHAN_BW, web_cfg_chan_bandwidth_khz );
-            snprintf( web_cfg_chan_bandwidth_khz_str, sizeof web_cfg_chan_bandwidth_khz_str, "%" PRIu16,
-                      web_cfg_chan_bandwidth_khz );
-        }
-        else
-        {
-            ESP_LOGW( TAG_WEB, "Failed to get %s from NVS - %s\n", CFG_NVS_KEY_CHAN_BW, esp_err_to_name( err ) );
-        }
-
-        size = sizeof( web_cfg_sntp_address );
-        err  = nvs_get_str( my_handle, CFG_NVS_KEY_SNTP_ADDRESS, web_cfg_sntp_address, &size );
-        if( err == ESP_OK )
-        {
-            printf( "NVS -> %s = %s\n", CFG_NVS_KEY_SNTP_ADDRESS, web_cfg_sntp_address );
-        }
-        else
-        {
-            ESP_LOGW( TAG_WEB, "Failed to get %s from NVS - %s\n", CFG_NVS_KEY_SNTP_ADDRESS, esp_err_to_name( err ) );
-        }
-    }
-    nvs_close( my_handle );
-    printf( "Closed NVS handle for reading.\n" );
-
-    return ESP_OK;
-}
-
 static esp_err_t http_root_get_handler( httpd_req_t* req )
 {
-    esp_err_t err = ESP_OK;
-
     /* a string to hold the form field name property */
     char field_name_str[FORM_FIELD_NAME_STR_MAX_SIZE + 1] = { 0 };
+
+    /* a string to hold the form field value property */
+    char field_value_str[FORM_FIELD_VALUE_STR_MAX_SIZE + 1] = { 0 };
 
     /* a string to hold the form field max_length property */
     char field_maxlength_str[3 + 1] = { 0 }; /* hold a max_length of 999 max + null termination */
@@ -298,12 +188,9 @@ static esp_err_t http_root_get_handler( httpd_req_t* req )
     snprintf( web_inf_mac_addr_str, sizeof web_inf_mac_addr_str, "%02x:%02x:%02x:%02x:%02x:%02x", web_inf_mac_addr[0],
               web_inf_mac_addr[1], web_inf_mac_addr[2], web_inf_mac_addr[3], web_inf_mac_addr[4], web_inf_mac_addr[5] );
 
-    err = get_config_from_nvs( );
-    if( err != ESP_OK )
-    {
-        httpd_resp_send_err( req, HTTPD_500_INTERNAL_SERVER_ERROR, "failed to read config to NVS" );
-        return ESP_FAIL;
-    }
+    /* Get current loaded config */
+    const lgw_nvs_cfg_t* nvs_config;
+    lgw_nvs_get_config( &nvs_config );
 
     /* Send HTML header */
     httpd_resp_sendstr_chunk( req, "<!DOCTYPE html><html>" );
@@ -332,7 +219,9 @@ static esp_err_t http_root_get_handler( httpd_req_t* req )
     /* MAC address */
     httpd_resp_sendstr_chunk( req, "<label>MAC address: " );
     if( strlen( web_inf_mac_addr_str ) )
+    {
         httpd_resp_sendstr_chunk( req, web_inf_mac_addr_str );
+    }
     httpd_resp_sendstr_chunk( req, "</label>" );
 
     /* LNS configuration */
@@ -358,8 +247,10 @@ static esp_err_t http_root_get_handler( httpd_req_t* req )
     httpd_resp_sendstr_chunk( req, field_maxlength_str );
     httpd_resp_sendstr_chunk( req, "\"" );        /* close string */
     httpd_resp_sendstr_chunk( req, " value=\"" ); /* 1 space prefix */
-    if( strlen( web_cfg_lns_address ) )
-        httpd_resp_sendstr_chunk( req, web_cfg_lns_address );
+    if( strlen( nvs_config->lns_address ) )
+    {
+        httpd_resp_sendstr_chunk( req, nvs_config->lns_address );
+    }
     httpd_resp_sendstr_chunk( req, "\"><br>" );
 
     /* LNS server port */
@@ -372,14 +263,17 @@ static esp_err_t http_root_get_handler( httpd_req_t* req )
     snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_LNS_PORT );
     httpd_resp_sendstr_chunk( req, field_name_str );
     httpd_resp_sendstr_chunk( req, "\"" );
-    httpd_resp_sendstr_chunk( req, " step=1 min=0 max=65535" );                        /* 1 space prefix */
-    httpd_resp_sendstr_chunk( req, " name=\"" );                                       /* 1 space prefix */
-    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_LNS_PORT ); /* 1 space prefix */
+    httpd_resp_sendstr_chunk( req, " step=1 min=0 max=65535" ); /* 1 space prefix */
+    httpd_resp_sendstr_chunk( req, " name=\"" );                /* 1 space prefix */
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_LNS_PORT );
     httpd_resp_sendstr_chunk( req, field_name_str );
     httpd_resp_sendstr_chunk( req, "\"" );        /* close string */
     httpd_resp_sendstr_chunk( req, " value=\"" ); /* 1 space prefix */
-    if( strlen( web_cfg_lns_port_str ) )
-        httpd_resp_sendstr_chunk( req, web_cfg_lns_port_str );
+    if( sizeof( field_value_str ) > LNS_PORT_STR_MAX_SIZE )
+    {
+        snprintf( field_value_str, sizeof field_value_str, "%u", nvs_config->lns_port );
+        httpd_resp_sendstr_chunk( req, field_value_str );
+    }
     httpd_resp_sendstr_chunk( req, "\"><br>" );
 
     /* RX channel configuration */
@@ -395,47 +289,87 @@ static esp_err_t http_root_get_handler( httpd_req_t* req )
     snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_FREQ );
     httpd_resp_sendstr_chunk( req, field_name_str );
     httpd_resp_sendstr_chunk( req, "\"" );
-    httpd_resp_sendstr_chunk( req, " step=\"any\" min=150 max=960 lang=\"en\"" );       /* 1 space prefix */
-    httpd_resp_sendstr_chunk( req, " name=\"" );                                        /* 1 space prefix */
-    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_FREQ ); /* 1 space prefix */
+#if defined( CONFIG_RADIO_TYPE_LR1121 )
+    httpd_resp_sendstr_chunk( req, " step=\"any\" min=150 max=2500 lang=\"en\"" ); /* 1 space prefix */
+#else
+    httpd_resp_sendstr_chunk( req, " step=\"any\" min=150 max=960 lang=\"en\"" ); /* 1 space prefix */
+#endif
+    httpd_resp_sendstr_chunk( req, " name=\"" ); /* 1 space prefix */
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_FREQ );
     httpd_resp_sendstr_chunk( req, field_name_str );
     httpd_resp_sendstr_chunk( req, "\"" );        /* close string */
     httpd_resp_sendstr_chunk( req, " value=\"" ); /* 1 space prefix */
-    if( strlen( web_cfg_chan_freq_mhz_str ) )
-        httpd_resp_sendstr_chunk( req, web_cfg_chan_freq_mhz_str );
+    if( sizeof( field_value_str ) > CHAN_FREQ_STR_MAX_SIZE )
+    {
+        snprintf( field_value_str, sizeof field_value_str, "%.6f", ( double ) nvs_config->chan_freq_hz / 1e6 );
+        httpd_resp_sendstr_chunk( req, field_value_str );
+    }
     httpd_resp_sendstr_chunk( req, "\"><br>" );
 
-    /* channel SF */
+    /* channel spreading factor 1 */
     httpd_resp_sendstr_chunk( req, "<label for=\"" );
-    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_DR );
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_DR_1 );
     httpd_resp_sendstr_chunk( req, field_name_str );
-    httpd_resp_sendstr_chunk( req, "\">spreading factor</label>" );
+#if defined( CONFIG_RADIO_TYPE_LR1121 )
+    httpd_resp_sendstr_chunk( req, "\">spreading factor 1 - [5..12]</label>" );
+#else
+    httpd_resp_sendstr_chunk( req, "\">spreading factor - [5..12]</label>" );
+#endif
 
     httpd_resp_sendstr_chunk( req, "<input type=\"number\" id=\"" );
-    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_DR );
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_DR_1 );
     httpd_resp_sendstr_chunk( req, field_name_str );
     httpd_resp_sendstr_chunk( req, "\"" );
-    httpd_resp_sendstr_chunk( req, " step=1 min=7 max=12" );                          /* 1 space prefix */
-    httpd_resp_sendstr_chunk( req, " name=\"" );                                      /* 1 space prefix */
-    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_DR ); /* 1 space prefix */
+    httpd_resp_sendstr_chunk( req, " step=1 min=5 max=12" ); /* 1 space prefix */
+    httpd_resp_sendstr_chunk( req, " name=\"" );             /* 1 space prefix */
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_DR_1 );
     httpd_resp_sendstr_chunk( req, field_name_str );
     httpd_resp_sendstr_chunk( req, "\"" );        /* close string */
     httpd_resp_sendstr_chunk( req, " value=\"" ); /* 1 space prefix */
-    if( strlen( web_cfg_chan_datarate_str ) )
-        httpd_resp_sendstr_chunk( req, web_cfg_chan_datarate_str );
+    if( sizeof( field_value_str ) > CHAN_DR_STR_MAX_SIZE )
+    {
+        snprintf( field_value_str, sizeof field_value_str, "%u", nvs_config->chan_datarate_1 );
+        httpd_resp_sendstr_chunk( req, field_value_str );
+    }
     httpd_resp_sendstr_chunk( req, "\"><br>" );
+
+#if defined( CONFIG_RADIO_TYPE_LR1121 )
+    /* channel spreading factor 2 */
+    httpd_resp_sendstr_chunk( req, "<label for=\"" );
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_DR_2 );
+    httpd_resp_sendstr_chunk( req, field_name_str );
+    httpd_resp_sendstr_chunk( req, "\">spreading factor 2 - [5..12, 0:disable]</label>" );
+
+    httpd_resp_sendstr_chunk( req, "<input type=\"number\" id=\"" );
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_DR_2 );
+    httpd_resp_sendstr_chunk( req, field_name_str );
+    httpd_resp_sendstr_chunk( req, "\"" );
+    httpd_resp_sendstr_chunk( req, " step=1 min=0 max=12" ); /* 1 space prefix */
+    httpd_resp_sendstr_chunk( req, " name=\"" );             /* 1 space prefix */
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_DR_2 );
+    httpd_resp_sendstr_chunk( req, field_name_str );
+    httpd_resp_sendstr_chunk( req, "\"" );        /* close string */
+    httpd_resp_sendstr_chunk( req, " value=\"" ); /* 1 space prefix */
+    if( sizeof( field_value_str ) > CHAN_DR_STR_MAX_SIZE )
+    {
+        snprintf( field_value_str, sizeof field_value_str, "%u", nvs_config->chan_datarate_2 );
+        httpd_resp_sendstr_chunk( req, field_value_str );
+    }
+    httpd_resp_sendstr_chunk( req, "\">" );
+    httpd_resp_sendstr_chunk( req, "<br>" );
+#endif
 
     /* channel bandwidth */
     httpd_resp_sendstr_chunk( req, "<label>bandwidth</label>" );
 
     /* 125 khz */
     httpd_resp_sendstr_chunk( req, "<input type=\"radio\" id=\"bw_125\"" );
-    httpd_resp_sendstr_chunk( req, " name=\"" );                                      /* 1 space prefix */
-    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_BW ); /* 1 space prefix */
+    httpd_resp_sendstr_chunk( req, " name=\"" ); /* 1 space prefix */
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_BW );
     httpd_resp_sendstr_chunk( req, field_name_str );
     httpd_resp_sendstr_chunk( req, "\"" );             /* close string */
     httpd_resp_sendstr_chunk( req, " value=\"125\"" ); /* 1 space prefix */
-    if( strcmp( web_cfg_chan_bandwidth_khz_str, "125" ) == 0 )
+    if( nvs_config->chan_bandwidth_khz == 125 )
     {
         httpd_resp_sendstr_chunk( req, " checked=\"checked\">" ); /* 1 space prefix */
     }
@@ -447,12 +381,12 @@ static esp_err_t http_root_get_handler( httpd_req_t* req )
 
     /* 250 khz */
     httpd_resp_sendstr_chunk( req, "<input type=\"radio\" id=\"bw_250\"" );
-    httpd_resp_sendstr_chunk( req, " name=\"" );                                      /* 1 space prefix */
-    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_BW ); /* 1 space prefix */
+    httpd_resp_sendstr_chunk( req, " name=\"" ); /* 1 space prefix */
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_BW );
     httpd_resp_sendstr_chunk( req, field_name_str );
     httpd_resp_sendstr_chunk( req, "\"" );             /* close string */
     httpd_resp_sendstr_chunk( req, " value=\"250\"" ); /* 1 space prefix */
-    if( strcmp( web_cfg_chan_bandwidth_khz_str, "250" ) == 0 )
+    if( nvs_config->chan_bandwidth_khz == 250 )
     {
         httpd_resp_sendstr_chunk( req, " checked=\"checked\">" ); /* 1 space prefix */
     }
@@ -464,12 +398,12 @@ static esp_err_t http_root_get_handler( httpd_req_t* req )
 
     /* 500 khz */
     httpd_resp_sendstr_chunk( req, "<input type=\"radio\" id=\"bw_500\"" );
-    httpd_resp_sendstr_chunk( req, " name=\"" );                                      /* 1 space prefix */
-    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_BW ); /* 1 space prefix */
+    httpd_resp_sendstr_chunk( req, " name=\"" ); /* 1 space prefix */
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_BW );
     httpd_resp_sendstr_chunk( req, field_name_str );
     httpd_resp_sendstr_chunk( req, "\"" );             /* close string */
     httpd_resp_sendstr_chunk( req, " value=\"500\"" ); /* 1 space prefix */
-    if( strcmp( web_cfg_chan_bandwidth_khz_str, "500" ) == 0 )
+    if( nvs_config->chan_bandwidth_khz == 500 )
     {
         httpd_resp_sendstr_chunk( req, " checked=\"checked\">" ); /* 1 space prefix */
     }
@@ -478,6 +412,59 @@ static esp_err_t http_root_get_handler( httpd_req_t* req )
         httpd_resp_sendstr_chunk( req, ">" );
     }
     httpd_resp_sendstr_chunk( req, "<label for=\"bw_500\">500</label>" );
+
+#if defined( CONFIG_RADIO_TYPE_LR1121 )
+    /* 200 khz (for 2.4 GHz) */
+    httpd_resp_sendstr_chunk( req, "<input type=\"radio\" id=\"bw_200\"" );
+    httpd_resp_sendstr_chunk( req, " name=\"" ); /* 1 space prefix */
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_BW );
+    httpd_resp_sendstr_chunk( req, field_name_str );
+    httpd_resp_sendstr_chunk( req, "\"" );             /* close string */
+    httpd_resp_sendstr_chunk( req, " value=\"200\"" ); /* 1 space prefix */
+    if( nvs_config->chan_bandwidth_khz == 200 )
+    {
+        httpd_resp_sendstr_chunk( req, " checked=\"checked\">" ); /* 1 space prefix */
+    }
+    else
+    {
+        httpd_resp_sendstr_chunk( req, ">" );
+    }
+    httpd_resp_sendstr_chunk( req, "<strong><label for=\"bw_200\">200</label></strong>" );
+
+    /* 400 khz (for 2.4 GHz) */
+    httpd_resp_sendstr_chunk( req, "<input type=\"radio\" id=\"bw_400\"" );
+    httpd_resp_sendstr_chunk( req, " name=\"" ); /* 1 space prefix */
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_BW );
+    httpd_resp_sendstr_chunk( req, field_name_str );
+    httpd_resp_sendstr_chunk( req, "\"" );             /* close string */
+    httpd_resp_sendstr_chunk( req, " value=\"400\"" ); /* 1 space prefix */
+    if( nvs_config->chan_bandwidth_khz == 400 )
+    {
+        httpd_resp_sendstr_chunk( req, " checked=\"checked\">" ); /* 1 space prefix */
+    }
+    else
+    {
+        httpd_resp_sendstr_chunk( req, ">" );
+    }
+    httpd_resp_sendstr_chunk( req, "<strong><label for=\"bw_400\">400</label></strong>" );
+
+    /* 800 khz (for 2.4 GHz) */
+    httpd_resp_sendstr_chunk( req, "<input type=\"radio\" id=\"bw_800\"" );
+    httpd_resp_sendstr_chunk( req, " name=\"" ); /* 1 space prefix */
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_CHAN_BW );
+    httpd_resp_sendstr_chunk( req, field_name_str );
+    httpd_resp_sendstr_chunk( req, "\"" );             /* close string */
+    httpd_resp_sendstr_chunk( req, " value=\"800\"" ); /* 1 space prefix */
+    if( nvs_config->chan_bandwidth_khz == 800 )
+    {
+        httpd_resp_sendstr_chunk( req, " checked=\"checked\">" ); /* 1 space prefix */
+    }
+    else
+    {
+        httpd_resp_sendstr_chunk( req, ">" );
+    }
+    httpd_resp_sendstr_chunk( req, "<strong><strong><label for=\"bw_800\">800</label></strong>" );
+#endif
     httpd_resp_sendstr_chunk( req, "<br>" );
 
     /* Miscellaneous */
@@ -490,8 +477,8 @@ static esp_err_t http_root_get_handler( httpd_req_t* req )
     httpd_resp_sendstr_chunk( req, "\">SNTP server address</label>" );
 
     httpd_resp_sendstr_chunk( req, "<input type=\"text\" id=\"sntp_address\"" );
-    httpd_resp_sendstr_chunk( req, " name=\"" );                                           /* 1 space prefix */
-    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_SNTP_ADDRESS ); /* 1 space prefix */
+    httpd_resp_sendstr_chunk( req, " name=\"" ); /* 1 space prefix */
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_SNTP_ADDRESS );
     httpd_resp_sendstr_chunk( req, field_name_str );
     httpd_resp_sendstr_chunk( req, "\"" ); /* close string */
     httpd_resp_sendstr_chunk( req, " maxlength=\"" );
@@ -500,14 +487,16 @@ static esp_err_t http_root_get_handler( httpd_req_t* req )
     httpd_resp_sendstr_chunk( req, field_maxlength_str );
     httpd_resp_sendstr_chunk( req, "\"" );        /* close string */
     httpd_resp_sendstr_chunk( req, " value=\"" ); /* 1 space prefix */
-    if( strlen( web_cfg_sntp_address ) )
-        httpd_resp_sendstr_chunk( req, web_cfg_sntp_address );
+    if( strlen( nvs_config->sntp_address ) )
+    {
+        httpd_resp_sendstr_chunk( req, nvs_config->sntp_address );
+    }
     httpd_resp_sendstr_chunk( req, "\"><br>" );
 
     /* Submit form button */
     httpd_resp_sendstr_chunk( req, "<br><input class=\"btn_cfg\" type=\"submit\"" );
-    httpd_resp_sendstr_chunk( req, " name=\"" );                                     /* 1 space prefix */
-    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_SUBMIT ); /* 1 space prefix */
+    httpd_resp_sendstr_chunk( req, " name=\"" ); /* 1 space prefix */
+    snprintf( field_name_str, sizeof field_name_str, "%s", FORM_FIELD_NAME_SUBMIT );
     httpd_resp_sendstr_chunk( req, field_name_str );
     httpd_resp_sendstr_chunk( req, "\"" );                    /* close string */
     httpd_resp_sendstr_chunk( req, " value=\"configure\">" ); /* 1 space prefix */
@@ -578,129 +567,6 @@ void web_form_to_json( char* dest_json_str, char* src_form_data )
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
-static esp_err_t store_config_to_nvs( void )
-{
-    esp_err_t    err = ESP_OK;
-    nvs_handle_t my_handle;
-
-    printf( "Opening Non-Volatile Storage (NVS) handle for writing... " );
-    err = nvs_open( "storage", NVS_READWRITE, &my_handle );
-    if( err != ESP_OK )
-    {
-        printf( "Error (%s) opening NVS handle!\n", esp_err_to_name( err ) );
-        return ESP_FAIL;
-    }
-    else
-    {
-        printf( "Done\n" );
-    }
-
-    printf( "NVS <- %s = %s ... ", CFG_NVS_KEY_LNS_ADDRESS, web_cfg_lns_address );
-    err = nvs_set_str( my_handle, CFG_NVS_KEY_LNS_ADDRESS, web_cfg_lns_address );
-    if( err == ESP_OK )
-    {
-        printf( "Done\n" );
-    }
-    else
-    {
-        printf( "Failed\n" );
-        nvs_close( my_handle );
-        printf( "Closed NVS handle for writing.\n" );
-        return ESP_FAIL;
-    }
-
-    printf( "NVS <- %s = %" PRIu16 " ... ", CFG_NVS_KEY_LNS_PORT, web_cfg_lns_port );
-    err = nvs_set_u16( my_handle, CFG_NVS_KEY_LNS_PORT, web_cfg_lns_port );
-    if( err == ESP_OK )
-    {
-        printf( "Done\n" );
-    }
-    else
-    {
-        printf( "Failed\n" );
-        nvs_close( my_handle );
-        printf( "Closed NVS handle for writing.\n" );
-        return ESP_FAIL;
-    }
-
-    printf( "NVS <- %s = %" PRIu32 " ... ", CFG_NVS_KEY_CHAN_FREQ, web_cfg_chan_freq_hz );
-    err = nvs_set_u32( my_handle, CFG_NVS_KEY_CHAN_FREQ, web_cfg_chan_freq_hz );
-    if( err == ESP_OK )
-    {
-        printf( "Done\n" );
-    }
-    else
-    {
-        printf( "Failed\n" );
-        nvs_close( my_handle );
-        printf( "Closed NVS handle for writing.\n" );
-        return ESP_FAIL;
-    }
-
-    printf( "NVS <- %s = %" PRIu32 " ... ", CFG_NVS_KEY_CHAN_DR, web_cfg_chan_datarate );
-    err = nvs_set_u32( my_handle, CFG_NVS_KEY_CHAN_DR, web_cfg_chan_datarate );
-    if( err == ESP_OK )
-    {
-        printf( "Done\n" );
-    }
-    else
-    {
-        printf( "Failed\n" );
-        nvs_close( my_handle );
-        printf( "Closed NVS handle for writing.\n" );
-        return ESP_FAIL;
-    }
-
-    printf( "NVS <- %s = %" PRIu16 " ... ", CFG_NVS_KEY_CHAN_BW, web_cfg_chan_bandwidth_khz );
-    err = nvs_set_u16( my_handle, CFG_NVS_KEY_CHAN_BW, web_cfg_chan_bandwidth_khz );
-    if( err == ESP_OK )
-    {
-        printf( "Done\n" );
-    }
-    else
-    {
-        printf( "Failed\n" );
-        nvs_close( my_handle );
-        printf( "Closed NVS handle for writing.\n" );
-        return ESP_FAIL;
-    }
-
-    printf( "NVS <- %s = %s ... ", CFG_NVS_KEY_SNTP_ADDRESS, web_cfg_sntp_address );
-    err = nvs_set_str( my_handle, CFG_NVS_KEY_SNTP_ADDRESS, web_cfg_sntp_address );
-    if( err == ESP_OK )
-    {
-        printf( "Done\n" );
-    }
-    else
-    {
-        printf( "Failed\n" );
-        nvs_close( my_handle );
-        printf( "Closed NVS handle for writing.\n" );
-        return ESP_FAIL;
-    }
-
-    printf( "Committing updates in NVS ... " );
-    err = nvs_commit( my_handle );
-    if( err == ESP_OK )
-    {
-        printf( "Done\n" );
-    }
-    else
-    {
-        printf( "Failed\n" );
-        nvs_close( my_handle );
-        printf( "Closed NVS handle for writing.\n" );
-        return ESP_FAIL;
-    }
-
-    nvs_close( my_handle );
-    printf( "Closed NVS handle for writing.\n" );
-
-    return ESP_OK;
-}
-
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-
 /* POSTMAN:
 POST http://xxx.xxx.xxx.xxxx:8000/api/v1/set_config
 {"lns_addr":"eu1.cloud.thethings.network","lns_port":1700,"chan_freq":868.1,"chan_dr":7,"chan_bw":125,"sntp_addr":"pool.ntp.org"}
@@ -708,7 +574,6 @@ POST http://xxx.xxx.xxx.xxxx:8000/api/v1/set_config
 
 static esp_err_t set_config_post_handler( httpd_req_t* req )
 {
-    esp_err_t       err      = ESP_OK;
     http_post_src_t post_src = ( http_post_src_t )( intptr_t ) req->user_ctx;
     JSON_Value*     root_val = NULL;
     JSON_Object*    root_obj = NULL;
@@ -776,16 +641,10 @@ static esp_err_t set_config_post_handler( httpd_req_t* req )
         }
     }
 
-    /* Get current config from NVS. Not required for WEB_FORM as already done */
-    if( post_src == HTTP_POST_SRC_API )
-    {
-        err = get_config_from_nvs( );
-        if( err != ESP_OK )
-        {
-            httpd_resp_send_err( req, HTTPD_500_INTERNAL_SERVER_ERROR, "failed to read config to NVS" );
-            return ESP_FAIL;
-        }
-    }
+    /* Get current loaded config */
+    const lgw_nvs_cfg_t* current_config;
+    lgw_nvs_get_config( &current_config );
+    lgw_nvs_cfg_t updated_config = *current_config; /* local alloc for update */
 
     /* Parse JSON */
     root_val = json_parse_string_with_comments( ( const char* ) ( post_content_json ) );
@@ -827,7 +686,11 @@ static esp_err_t set_config_post_handler( httpd_req_t* req )
                 if( err == ESP_OK )
                 {
                     printf( "%s:%.6f\n", FORM_FIELD_NAME_CHAN_FREQ, web_cfg_chan_freq_mhz );
+#if defined( CONFIG_RADIO_TYPE_LR1121 )
+                    if( ( web_cfg_chan_freq_mhz < 150.0 ) || ( web_cfg_chan_freq_mhz > 2500.0 ) )
+#else
                     if( ( web_cfg_chan_freq_mhz < 150.0 ) || ( web_cfg_chan_freq_mhz > 960.0 ) )
+#endif
                     {
                         ESP_LOGE( TAG_WEB, "ERROR: %s - out of range, configuration failed",
                                   FORM_FIELD_NAME_CHAN_FREQ );
@@ -836,7 +699,7 @@ static esp_err_t set_config_post_handler( httpd_req_t* req )
                     else
                     {
                         /* Update context to be stored in NVS */
-                        web_cfg_chan_freq_hz = ( uint32_t )( ( double ) ( 1.0e6 ) * web_cfg_chan_freq_mhz );
+                        updated_config.chan_freq_hz = ( uint32_t )( ( double ) ( 1.0e6 ) * web_cfg_chan_freq_mhz );
                     }
                 }
                 /* response on error */
@@ -848,8 +711,8 @@ static esp_err_t set_config_post_handler( httpd_req_t* req )
                 }
             }
 
-            /* Get channel datarate */
-            val = json_object_get_value( root_obj, FORM_FIELD_NAME_CHAN_DR );
+            /* Get channel datarate 1 */
+            val = json_object_get_value( root_obj, FORM_FIELD_NAME_CHAN_DR_1 );
             if( val != NULL )
             {
                 double          val_num;
@@ -864,32 +727,79 @@ static esp_err_t set_config_post_handler( httpd_req_t* req )
                 }
                 else
                 {
-                    ESP_LOGE( TAG_WEB, "ERROR: %s - invalid format %d, configuration failed", FORM_FIELD_NAME_CHAN_DR,
+                    ESP_LOGE( TAG_WEB, "ERROR: %s - invalid format %d, configuration failed", FORM_FIELD_NAME_CHAN_DR_1,
                               val_type );
                     err = ESP_FAIL;
                 }
                 /* sanity check */
                 if( err == ESP_OK )
                 {
-                    printf( "%s:%.0f\n", FORM_FIELD_NAME_CHAN_DR, val_num );
-                    if( ( val_num < 7 ) || ( val_num > 12 ) )
+                    printf( "%s:%.0f\n", FORM_FIELD_NAME_CHAN_DR_1, val_num );
+                    if( ( val_num < 5 ) || ( val_num > 12 ) )
                     {
-                        ESP_LOGE( TAG_WEB, "ERROR: %s - out of range, configuration failed", FORM_FIELD_NAME_CHAN_DR );
+                        ESP_LOGE( TAG_WEB, "ERROR: %s - out of range, configuration failed",
+                                  FORM_FIELD_NAME_CHAN_DR_1 );
                         err = ESP_FAIL;
                     }
                     else
                     {
-                        web_cfg_chan_datarate = ( uint32_t ) val_num;
+                        updated_config.chan_datarate_1 = ( uint32_t ) val_num;
                     }
                 }
                 /* response on error */
                 if( err != ESP_OK )
                 {
-                    httpd_resp_send_err( req, HTTPD_400_BAD_REQUEST, FORM_FIELD_NAME_CHAN_DR );
+                    httpd_resp_send_err( req, HTTPD_400_BAD_REQUEST, FORM_FIELD_NAME_CHAN_DR_1 );
                     json_value_free( root_val );
                     return ESP_FAIL;
                 }
             }
+
+#if defined( CONFIG_RADIO_TYPE_LR1121 )
+            /* Get channel datarate 2 */
+            val = json_object_get_value( root_obj, FORM_FIELD_NAME_CHAN_DR_2 );
+            if( val != NULL )
+            {
+                double          val_num;
+                JSON_Value_Type val_type = json_value_get_type( val );
+                if( val_type == JSONNumber )
+                {
+                    val_num = json_value_get_number( val );
+                }
+                else if( val_type == JSONString )
+                {
+                    val_num = atof( json_value_get_string( val ) );
+                }
+                else
+                {
+                    ESP_LOGE( TAG_WEB, "ERROR: %s - invalid format %d, configuration failed", FORM_FIELD_NAME_CHAN_DR_2,
+                              val_type );
+                    err = ESP_FAIL;
+                }
+                /* sanity check */
+                if( err == ESP_OK )
+                {
+                    printf( "%s:%.0f\n", FORM_FIELD_NAME_CHAN_DR_2, val_num );
+                    if( ( val_num != 0 ) && ( ( val_num < 5 ) || ( val_num > 12 ) ) )
+                    {
+                        ESP_LOGE( TAG_WEB, "ERROR: %s - out of range, configuration failed",
+                                  FORM_FIELD_NAME_CHAN_DR_2 );
+                        err = ESP_FAIL;
+                    }
+                    else
+                    {
+                        updated_config.chan_datarate_2 = ( uint32_t ) val_num;
+                    }
+                }
+                /* response on error */
+                if( err != ESP_OK )
+                {
+                    httpd_resp_send_err( req, HTTPD_400_BAD_REQUEST, FORM_FIELD_NAME_CHAN_DR_2 );
+                    json_value_free( root_val );
+                    return ESP_FAIL;
+                }
+            }
+#endif
 
             /* Get channel bandwidth */
             val = json_object_get_value( root_obj, FORM_FIELD_NAME_CHAN_BW );
@@ -898,11 +808,11 @@ static esp_err_t set_config_post_handler( httpd_req_t* req )
                 JSON_Value_Type val_type = json_value_get_type( val );
                 if( val_type == JSONNumber )
                 {
-                    web_cfg_chan_bandwidth_khz = ( uint16_t ) json_value_get_number( val );
+                    updated_config.chan_bandwidth_khz = ( uint16_t ) json_value_get_number( val );
                 }
                 else if( val_type == JSONString )
                 {
-                    web_cfg_chan_bandwidth_khz = ( uint16_t ) strtoul( json_value_get_string( val ), NULL, 10 );
+                    updated_config.chan_bandwidth_khz = ( uint16_t ) strtoul( json_value_get_string( val ), NULL, 10 );
                 }
                 else
                 {
@@ -913,9 +823,15 @@ static esp_err_t set_config_post_handler( httpd_req_t* req )
                 /* sanity check */
                 if( err == ESP_OK )
                 {
-                    printf( "%s:%u\n", FORM_FIELD_NAME_CHAN_BW, web_cfg_chan_bandwidth_khz );
-                    if( ( web_cfg_chan_bandwidth_khz != 125 ) && ( web_cfg_chan_bandwidth_khz != 250 ) &&
-                        ( web_cfg_chan_bandwidth_khz != 500 ) )
+                    printf( "%s:%u\n", FORM_FIELD_NAME_CHAN_BW, updated_config.chan_bandwidth_khz );
+#if defined( CONFIG_RADIO_TYPE_LR1121 )
+                    if( ( updated_config.chan_bandwidth_khz != 125 ) && ( updated_config.chan_bandwidth_khz != 250 ) &&
+                        ( updated_config.chan_bandwidth_khz != 500 ) && ( updated_config.chan_bandwidth_khz != 200 ) &&
+                        ( updated_config.chan_bandwidth_khz != 400 ) && ( updated_config.chan_bandwidth_khz != 800 ) )
+#else
+                    if( ( updated_config.chan_bandwidth_khz != 125 ) && ( updated_config.chan_bandwidth_khz != 250 ) &&
+                        ( updated_config.chan_bandwidth_khz != 500 ) )
+#endif
                     {
                         ESP_LOGE( TAG_WEB, "ERROR: %s - out of range, configuration failed", FORM_FIELD_NAME_CHAN_BW );
                         err = ESP_FAIL;
@@ -938,10 +854,10 @@ static esp_err_t set_config_post_handler( httpd_req_t* req )
                 if( val_type == JSONString )
                 {
                     str = json_value_get_string( val );
-                    if( strlen( str ) < sizeof( web_cfg_lns_address ) )
+                    if( strlen( str ) < sizeof( updated_config.lns_address ) )
                     {
-                        strcpy( web_cfg_lns_address, str );
-                        printf( "%s:%s\n", FORM_FIELD_NAME_LNS_ADDRESS, web_cfg_lns_address );
+                        strcpy( updated_config.lns_address, str );
+                        printf( "%s:%s\n", FORM_FIELD_NAME_LNS_ADDRESS, updated_config.lns_address );
                     }
                     else
                     {
@@ -995,7 +911,7 @@ static esp_err_t set_config_post_handler( httpd_req_t* req )
                     }
                     else
                     {
-                        web_cfg_lns_port = ( uint16_t ) val_num;
+                        updated_config.lns_port = ( uint16_t ) val_num;
                     }
                 }
                 /* response on error */
@@ -1015,10 +931,10 @@ static esp_err_t set_config_post_handler( httpd_req_t* req )
                 if( val_type == JSONString )
                 {
                     str = json_value_get_string( val );
-                    if( strlen( str ) < sizeof( web_cfg_sntp_address ) )
+                    if( strlen( str ) < sizeof( updated_config.sntp_address ) )
                     {
-                        strcpy( web_cfg_sntp_address, str );
-                        printf( "%s:%s\n", FORM_FIELD_NAME_SNTP_ADDRESS, web_cfg_sntp_address );
+                        strcpy( updated_config.sntp_address, str );
+                        printf( "%s:%s\n", FORM_FIELD_NAME_SNTP_ADDRESS, updated_config.sntp_address );
                     }
                     else
                     {
@@ -1046,8 +962,45 @@ static esp_err_t set_config_post_handler( httpd_req_t* req )
     /* free the JSON parse tree from memory */
     json_value_free( root_val );
 
+    /* Check if dual-sf configuration is valid */
+    uint8_t bw;
+    switch( updated_config.chan_bandwidth_khz )
+    {
+        /* sub-ghz bandwidths */
+    case 125:
+        bw = BW_125KHZ;
+        break;
+    case 250:
+        bw = BW_250KHZ;
+        break;
+    case 500:
+        bw = BW_500KHZ;
+        break;
+        /* 2.4 ghz bandwidths */
+    case 200:
+        bw = BW_200KHZ;
+        break;
+    case 400:
+        bw = BW_400KHZ;
+        break;
+    case 800:
+        bw = BW_800KHZ;
+        break;
+    default:
+        bw = BW_UNDEFINED;
+        break;
+    }
+    int lgw_err = lgw_check_lora_dualsf_conf( bw, updated_config.chan_datarate_1, updated_config.chan_datarate_2 );
+    if( lgw_err != LGW_HAL_SUCCESS )
+    {
+        ESP_LOGE( TAG_WEB, "ERROR: wrong channel configuration" );
+        httpd_resp_send_err( req, HTTPD_500_INTERNAL_SERVER_ERROR, "wrong channel configuration" );
+        return ESP_FAIL;
+    }
+
     /* store configuration to flash memory */
-    if( store_config_to_nvs( ) != ESP_OK )
+    lgw_nvs_set_config( &updated_config );
+    if( lgw_nvs_save_config( ) != ESP_OK )
     {
         ESP_LOGE( TAG_WEB, "ERROR: failed to write configuration to NVS" );
         httpd_resp_send_err( req, HTTPD_500_INTERNAL_SERVER_ERROR, "failed to store config to NVS" );
@@ -1111,24 +1064,21 @@ GET http://xxx.xxx.xxx.xxxx:8000/api/v1/get_config
 
 esp_err_t get_config_get_handler( httpd_req_t* req )
 {
-    esp_err_t err = ESP_OK;
-
     ESP_LOGI( TAG_WEB, "%s: req->uri=%s", __FUNCTION__, req->uri );
     ESP_LOGI( TAG_WEB, "%s: content length %d", __FUNCTION__, req->content_len );
 
-    err = get_config_from_nvs( );
-    if( err != ESP_OK )
-    {
-        httpd_resp_send_err( req, HTTPD_500_INTERNAL_SERVER_ERROR, "failed to read config to NVS" );
-        return ESP_FAIL;
-    }
+    /* Get current loaded config */
+    const lgw_nvs_cfg_t* nvs_cfg;
+    lgw_nvs_get_config( &nvs_cfg );
 
     /* Generate the JSON string */
-    snprintf(
-        post_content_json, JSON_FULL_CONTENT_MAX_SIZE,
-        "{\"lns_addr\":\"%s\",\"lns_port\":%s,\"chan_freq\":%s,\"chan_dr\":%s,\"chan_bw\":%s,\"sntp_addr\":\"%s\"}",
-        web_cfg_lns_address, web_cfg_lns_port_str, web_cfg_chan_freq_mhz_str, web_cfg_chan_datarate_str,
-        web_cfg_chan_bandwidth_khz_str, web_cfg_sntp_address );
+    snprintf( post_content_json, JSON_FULL_CONTENT_MAX_SIZE,
+              "{\"%s\":\"%s\",\"%s\":%u,\"%s\":%.6f,\"%s\":%u,\"%s\":%u,\"%s\":%u,"
+              "\"%s\":\"%s\"}",
+              CFG_NVS_KEY_LNS_ADDRESS, nvs_cfg->lns_address, CFG_NVS_KEY_LNS_PORT, nvs_cfg->lns_port,
+              CFG_NVS_KEY_CHAN_FREQ, ( double ) nvs_cfg->chan_freq_hz / 1e6, CFG_NVS_KEY_CHAN_DR_1,
+              nvs_cfg->chan_datarate_1, CFG_NVS_KEY_CHAN_DR_2, nvs_cfg->chan_datarate_2, CFG_NVS_KEY_CHAN_BW,
+              nvs_cfg->chan_bandwidth_khz, CFG_NVS_KEY_SNTP_ADDRESS, nvs_cfg->sntp_address );
 
     /* Send response */
     httpd_resp_set_type( req, "application/json" );

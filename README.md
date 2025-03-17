@@ -81,9 +81,11 @@ The main application handles the following:
 
 ## 2.1. Supported platforms
 
-* Heltec WiFi LoRa 32 v3 (sx1262)
 * Semtech One-Channel Hub devkit (sx1261, sx1262, sx1268, llcc68, lr1121)
-* Seeed XIAO ESP32S3 Gateway (sx1262)
+* Heltec WiFi LoRa 32 v3 (sx1262)
+* Seeed Xiao ESP32S3 with Wio-SX1262 (no display by default, Xiao expansion board is supported)
+* Lilygo T3S3 (sx1262)
+* EBytes ESP32+LR1121 (available for regions EU868/US915 or CN470)
 
 Concerning the Semtech One-Channel Hub devkit, one Semtech radio shield is
 supported for each radio type:
@@ -94,24 +96,23 @@ supported for each radio type:
 | Sx1262 | US915  | SX1262MB1CAS      | E428V03A, XTAL    , LDO    |
 | Sx1268 | CN470  | SX1268MB1GAS      | E512V01A, XTAL (*), LDO    |
 | LLCC68 | EU868  | LLCC68MB2BAS (**) | E568V01A, XTAL (*), LDO    |
-| LR1121 | EU868  | LR1121MB1DIS      | E655V01A, XTAL (*)         |
-| LR1121 | US915  | LR1121MB1DIS      | E655V01A, XTAL             |
-| LR1121 | CN470  | LR1121MB1GIS      | E655V01A, XTAL (*)         |
+| LR1121 | EU868  | LR1121MB2THDAS    | E742V01A, TCXO             |
+| LR1121 | US915  | LR1121MB2THDAS    | E742V01A, TCXO             |
 
 (*) Most regions outside of USA, Canada and Australia employ LoRa 125kHz,
 generally with a channel spacing of 200kHz. With LoRa 125 kHz being employed,
 it is required to use an accurate frequency reference on the One Channel Hub in
 order to respect the frequency error tolerance of the technology. A Hub designed
-for these regions should therefore employ a TCXO. Semtech shields do not use a
-TCXO, but can still be used in nominal conditions to experiment. Full details on
-the frequency error computations are provided in AN1200.xx in Section 3.2.
+for these regions should therefore employ a TCXO. Some Semtech shields do not
+use a TCXO, but can still be used in nominal conditions to experiment. Full
+details on the frequency error computations are provided in AN1200.59 in Section 3.
 
 (**) There is no connector for the display board on Semtech's LLCC68 devkit
 shield, so the display must be disabled in `menuconfig`.
 
 ## 2.2. Dependencies
 
-This project has been tested with ESP-IDF v5.2.1.
+This project has been tested with ESP-IDF v5.3
 
 Among others, it uses the following espressif managed components:
 * LVGL: a graphical library for OLED display, and the associated port for espressif.
@@ -288,7 +289,15 @@ provisioning mode on the Hub.
 For more details on the provisioning scheme, please refer to this page:
 https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/provisioning/provisioning.html
 
-In order to enter provisioning mode, do the following:
+## 3.5.1. Enter WiFi Provisioning mode
+
+If the WiFi Access Point has never been configured on this device, the OLED
+screen should display `LoRaHub - Initializing` and `not connected`.
+
+If it is the case, you can jump to the next section to connect to the Hub via
+BLE.
+
+Otherwise, in order to enter provisioning mode, do the following:
 - press the `RST` button.
 - within the next few seconds (5 by default, configurable in menuconfig), while
 the LED is on, press the `PRG/USR/BOOT` button.
@@ -301,7 +310,9 @@ steps, so if the Hub is being reset before entering new WiFi credentials, it
 will still need to be configured. But it may not display `WiFi provisioning`
 after reset.
 
-Then, in order to configure the WiFi access point, the following app should be
+## 3.5.2. Connect to the Hub via BLE to configure the WiFi Access Point
+
+In order to configure the WiFi access point, the following app should be
 installed on an Android or iOS phone.
 
 * https://play.google.com/store/apps/details?id=com.espressif.provble
@@ -335,7 +346,7 @@ The IP address can be seen on the OLED screen if a valid WiFi connection could
 be set.
 
 The web interface allows to configure the following:
-* channel parameters: frequency, datarate, bandwidth
+* channel parameters: frequency, spreading factor(s), bandwidth
 * LoRaWAN network server: address, port
 * SNTP server address (to get UTC time)
 
@@ -362,11 +373,15 @@ A JSON object as follows is expected:
     "lns_addr":"eu1.cloud.thethings.network",
     "lns_port":1700,
     "chan_freq":868.1,
-    "chan_dr":7,
+    "chan_dr":10,
+    "chan_dr_2":7,
     "chan_bw":125,
     "sntp_addr":"pool.ntp.org"
 }
 ```
+
+Note: `chan_dr_2` is only available when using LR1121 radio (dual-sf). It can be
+set to 0 to disable the second spreading factor.
 
 It is possible to send only few fields, as needed.
 
@@ -386,17 +401,56 @@ A JSON object as follows is expected:
 
 ```json
 {
-    "fw_version": "1.0.0",
+    "fw_version": "1.1.0",
     "radio_type": "SX1261"
 }
 ```
 
 # 4. Known limitations
 
-* FSK modulation not supported
-* LR1121 support is currently experimental, it has not been fully validated.
+* FSK modulation is not supported
+
+* Dual-SF feature is only available on the LR1121 radio chip. Due to hardware
+constraints, only some spreading factor combinations are allowed. The following
+list shows the tested combinations. When only one spreading factors is given, it
+means that only single-sf is supported.
+
+|                 |  [x..SF9]  |  [x..SF10]  |  [x..SF11]  | no dual-sf |
+|-----------------|------------|-------------|-------------|------------|
+| BW125 (sub-GHz) | [SF5..SF9] | [SF6..SF10] | SF11        | SF12       |
+| BW500 (sub-GHz) | [SF5..SF9] | [SF6..SF10] | [SF7..SF11] | SF12       |
+| BW800 (2.4GHz)  | [SF5..SF9] | SF10        | SF11        | SF12       |
+
+
+* LoRa 2.4GHz support is experimental. Due to hardware design of the one-channel
+hub platforms, the radio performances for LoRa 2.4GHz could be impacted by the
+wifi/ble operations running in parallel (interferences). Ensure that the wifi
+channels used to connect the hub are far enough from the LoRa channel to lower
+interferences.
+
+* A +/-6dB glitch can be observed in the reported RSSI when using the LR1121
+radio. This issue occurs within the signal strength range of -77 to -65 dBm when
+operating with a 125 kHz bandwidth.
 
 # 5. Changelog
+
+### v1.1.0 ###
+
+* Added full support for LR1121 (sub-GHz and 2.4GHz).
+* Added support for dual-sf on LR1121: it is possible to define a channel with
+2 different spreading factors, with constraints described in the section "Known
+limitations" above.
+* liblorahub: API updated for datarate type. uint8_t is enough for LoRa (no FSK support).
+* liblorahub: splitted configuration for RX and actual set RX
+* liblorahub: added image rejection calibration on selected frequency
+* liblorahub: added lorahub_log.h to configure log level per module
+* bsp: Updated TX power table for Heltec board
+* bsp: added support for Seeed Xiao ESP32S3 board.
+* bsp: added support for Lyligo T3S3 (sx1262) board.
+* bsp: added support for EBytes ESP32+LR1121 board.
+* main: Reworked configuration storage in NVS management.
+* main: Added hw_board_defs.h to define all host board specific parameters (pinout for buttons, LEDs, ...)
+* http API: Added "chan_dr_2" field for LR1121 dual-sf.
 
 ### v1.0.0 ###
 

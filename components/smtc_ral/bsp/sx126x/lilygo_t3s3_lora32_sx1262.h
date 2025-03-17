@@ -1,10 +1,11 @@
 /*!
- * \file      smtc_shield_lr11xx_types.h
+ * @file      lilygo_t3s3_lora32_sx1262.h
  *
- * \brief     Types common to all LR11xx-based shields
+ * @brief     Interface specific to Lilygo T3S3 LoRa32 sx1262 board.
+ *              Same definition than SX1262MB1DAS shield from SWSD003 project.
  *
  * The Clear BSD License
- * Copyright Semtech Corporation 2023. All rights reserved.
+ * Copyright Semtech Corporation 2022. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted (subject to the limitations in the disclaimer
@@ -31,9 +32,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
-#ifndef SMTC_SHIELD_LR11XX_TYPES_H
-#define SMTC_SHIELD_LR11XX_TYPES_H
+#ifndef LILYGO_T3S3_LORA32_SX1262_H
+#define LILYGO_T3S3_LORA32_SX1262_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,32 +44,23 @@ extern "C" {
  * --- DEPENDENCIES ------------------------------------------------------------
  */
 
+#include <stdbool.h>
 #include <stdint.h>
-
-#include <driver/gpio.h>
-
-#include "lr11xx_system.h"
-#include "lr11xx_radio.h"
+#include "smtc_shield_sx126x_types.h"
 
 /*
  * -----------------------------------------------------------------------------
  * --- PUBLIC MACROS -----------------------------------------------------------
  */
 
-#define SMTC_SHIELD_LR11XX_SUBGHZ_FREQ_MIN 150000000
-#define SMTC_SHIELD_LR11XX_SUBGHZ_FREQ_MAX 960000000
-
-#define SMTC_SHIELD_LR112X_2GHZ_FREQ_MIN 2000000000
-#define SMTC_SHIELD_LR112X_2GHZ_FREQ_MAX 2100000000
-
-#define SMTC_SHIELD_LR112X_2_4GHZ_FREQ_MIN 2400000000
-#define SMTC_SHIELD_LR112X_2_4GHZ_FREQ_MAX 2500000000
-
-#define SMTC_SHIELD_LR11XX_MIN_PWR -17
-#define SMTC_SHIELD_LR11XX_MAX_PWR 22
-
-#define SMTC_SHIELD_LR112X_MIN_PWR_HF -18
-#define SMTC_SHIELD_LR112X_MAX_PWR_HF 13
+#define LILYGO_T3S3_LORA32_SX1262_INSTANTIATE                                                                       \
+    {                                                                                                               \
+        .get_pa_pwr_cfg           = lilygo_t3s3_lora32_sx1262_get_pa_pwr_cfg,                                       \
+        .is_dio2_set_as_rf_switch = lilygo_t3s3_lora32_sx1262_is_dio2_set_as_rf_switch,                             \
+        .get_reg_mode             = lilygo_t3s3_lora32_sx1262_get_reg_mode,                                         \
+        .get_xosc_cfg = lilygo_t3s3_lora32_sx1262_get_xosc_cfg, .get_pinout = lilygo_t3s3_lora32_sx1262_get_pinout, \
+        .get_capabilities = lilygo_t3s3_lora32_sx1262_get_capabilities,                                             \
+    }
 
 /*
  * -----------------------------------------------------------------------------
@@ -81,74 +72,44 @@ extern "C" {
  * --- PUBLIC TYPES ------------------------------------------------------------
  */
 
-/**
- * @brief Power amplifier and output power configurations structure definition
- */
-typedef struct smtc_shield_lr11xx_pa_pwr_cfg_s
-{
-    int8_t                power;
-    lr11xx_radio_pa_cfg_t pa_config;
-} smtc_shield_lr11xx_pa_pwr_cfg_t;
-
-/**
- * @brief External 32MHz oscillator configuration structure definition
- */
-typedef struct smtc_shield_lr11xx_xosc_cfg_s
-{
-    bool                                has_tcxo;
-    lr11xx_system_tcxo_supply_voltage_t supply;
-    uint32_t                            startup_time_in_tick;
-} smtc_shield_lr11xx_xosc_cfg_t;
-
-/**
- * @brief 32kHz clock configuration structure definition
- */
-typedef struct smtc_shield_lr11xx_lfclk_cfg_s
-{
-    lr11xx_system_lfclk_cfg_t lf_clk_cfg;
-    bool                      wait_32k_ready;
-} smtc_shield_lr11xx_lfclk_cfg_t;
-
-/**
- * @brief Pinout structure definition
- */
-typedef struct smtc_shield_lr11xx_pinout_s
-{
-    gpio_num_t nss;
-    gpio_num_t sclk;
-    gpio_num_t mosi;
-    gpio_num_t miso;
-    gpio_num_t reset;
-    gpio_num_t busy;
-    gpio_num_t irq;
-    gpio_num_t lna;
-    gpio_num_t led_tx;
-    gpio_num_t led_rx;
-    gpio_num_t led_scan;
-} smtc_shield_lr11xx_pinout_t;
-
-/**
- * @brief Capabilities structure definition
- */
-typedef struct smtc_shield_lr11xx_capabilities_s
-{
-    uint32_t lf_freq_hz_min;
-    uint32_t lf_freq_hz_max;
-    uint32_t hf_freq_hz_min;
-    uint32_t hf_freq_hz_max;
-    int8_t   lf_power_dbm_min;
-    int8_t   lf_power_dbm_max;
-    int8_t   hf_power_dbm_min;
-    int8_t   hf_power_dbm_max;
-} smtc_shield_lr11xx_capabilities_t;
-
 /*
  * -----------------------------------------------------------------------------
  * --- PUBLIC FUNCTIONS PROTOTYPES ---------------------------------------------
  */
 
+/**
+ * @see smtc_shield_sx126x_get_pa_pwr_cfg
+ */
+const smtc_shield_sx126x_pa_pwr_cfg_t* lilygo_t3s3_lora32_sx1262_get_pa_pwr_cfg( const uint32_t rf_freq_in_hz,
+                                                                                 int8_t expected_output_pwr_in_dbm );
+
+/**
+ * @see smtc_shield_sx126x_is_dio2_set_as_rf_switch
+ */
+bool lilygo_t3s3_lora32_sx1262_is_dio2_set_as_rf_switch( void );
+
+/**
+ * @see smtc_shield_sx126x_get_reg_mode
+ */
+sx126x_reg_mod_t lilygo_t3s3_lora32_sx1262_get_reg_mode( void );
+
+/**
+ * @see smtc_shield_sx126x_get_xosc_cfg
+ */
+const smtc_shield_sx126x_xosc_cfg_t* lilygo_t3s3_lora32_sx1262_get_xosc_cfg( void );
+
+/**
+ * @see smtc_shield_sx126x_get_pinout
+ */
+const smtc_shield_sx126x_pinout_t* lilygo_t3s3_lora32_sx1262_get_pinout( void );
+
+/**
+ * @see smtc_shield_sx126x_get_capabilities
+ */
+const smtc_shield_sx126x_capabilities_t* lilygo_t3s3_lora32_sx1262_get_capabilities( void );
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // SMTC_SHIELD_LR11XX_TYPES_H
+#endif  // LILYGO_T3S3_LORA32_SX1262_H

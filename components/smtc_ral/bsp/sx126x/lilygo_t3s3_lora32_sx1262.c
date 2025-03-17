@@ -1,7 +1,7 @@
 /*!
- * @file      heltec_wifi_lora_32_v3.c
+ * @file      lilygo_t3s3_lora32_sx1262.c
  *
- * @brief     Implementation specific to Heltec WiFi LoRa 32 v3 board.
+ * @brief     Implementation specific to Lilygo T3S3 LoRa32 sx1262 board.
  *
  * The Clear BSD License
  * Copyright Semtech Corporation 2022. All rights reserved.
@@ -52,7 +52,7 @@
  * --- PRIVATE CONSTANTS -------------------------------------------------------
  */
 
-const smtc_shield_sx126x_pa_pwr_cfg_t smtc_shield_sx1262mb1das_pa_pwr_cfg_table[SMTC_SHIELD_SX1262_MAX_PWR - SMTC_SHIELD_SX1262_MIN_PWR + 1] = {
+const smtc_shield_sx126x_pa_pwr_cfg_t lilygo_t3s3_lora32_sx1262_pa_pwr_cfg_table[SMTC_SHIELD_SX1262_MAX_PWR - SMTC_SHIELD_SX1262_MIN_PWR + 1] = {
     {   // Expected output power = -9dBm
         .power = 3,
         .pa_config = {
@@ -346,7 +346,7 @@ const smtc_shield_sx126x_pa_pwr_cfg_t smtc_shield_sx1262mb1das_pa_pwr_cfg_table[
 /**
  * @brief XOSC configuration
  */
-const smtc_shield_sx126x_xosc_cfg_t smtc_shield_sx1262mb1das_xosc_cfg = {
+const smtc_shield_sx126x_xosc_cfg_t lilygo_t3s3_lora32_sx1262_xosc_cfg = {
     .tcxo_is_radio_controlled = true,
     .supply_voltage           = SX126X_TCXO_CTRL_3_0V,
     .startup_time_in_tick     = 300,
@@ -356,15 +356,14 @@ const smtc_shield_sx126x_xosc_cfg_t smtc_shield_sx1262mb1das_xosc_cfg = {
  * @brief GPIO configuration
  * ESP32-S3 chip features 45 physical GPIO pins (GPIO0 ~ GPIO21 and GPIO26 ~ GPIO48)
  */
-const smtc_shield_sx126x_pinout_t smtc_shield_sx1262mb1das_pinout = {
-    .nss   = 8,  /* GPIO8 */
-    .sclk  = 9,  /* GPIO9 */
-    .mosi  = 10, /* GPIO10 */
-    .miso  = 11, /* GPIO11 */
-    .reset = 12, /* GPIO12 */
-    .busy  = 13, /* GPIO13 */
-    .irq   = 14,
-    /* GPIO14 */        /* DIO1 */
+const smtc_shield_sx126x_pinout_t lilygo_t3s3_lora32_sx1262_pinout = {
+    .nss        = 7,
+    .sclk       = 5,
+    .mosi       = 6,
+    .miso       = 3,
+    .reset      = 8,
+    .busy       = 34,
+    .irq        = 33,
     .antenna_sw = 0xFF, /* NOT USED */
     .led_tx     = 0xFF, /* NOT USED */
     .led_rx     = 0xFF, /* NOT USED */
@@ -373,7 +372,7 @@ const smtc_shield_sx126x_pinout_t smtc_shield_sx1262mb1das_pinout = {
 /**
  * @brief Board capabilities
  */
-const smtc_shield_sx126x_capabilities_t smtc_shield_sx1262mb1das_capabilities = {
+const smtc_shield_sx126x_capabilities_t lilygo_t3s3_lora32_sx1262_capabilities = {
     .freq_hz_min   = SMTC_SHIELD_SX126X_FREQ_MIN,
     .freq_hz_max   = SMTC_SHIELD_SX126X_FREQ_MAX,
     .power_dbm_min = SMTC_SHIELD_SX1262_MIN_PWR,
@@ -405,7 +404,7 @@ const smtc_shield_sx126x_capabilities_t smtc_shield_sx1262mb1das_capabilities = 
  * --- PUBLIC FUNCTIONS DEFINITION ---------------------------------------------
  */
 
-const smtc_shield_sx126x_pa_pwr_cfg_t* smtc_shield_sx1262mb1das_get_pa_pwr_cfg(
+const smtc_shield_sx126x_pa_pwr_cfg_t* lilygo_t3s3_lora32_sx1262_get_pa_pwr_cfg(
     const uint32_t rf_freq_in_hz, const int8_t expected_output_pwr_in_dbm )
 {
     if( ( SMTC_SHIELD_SX126X_FREQ_MIN <= rf_freq_in_hz ) && ( rf_freq_in_hz <= SMTC_SHIELD_SX126X_FREQ_MAX ) )
@@ -414,36 +413,36 @@ const smtc_shield_sx126x_pa_pwr_cfg_t* smtc_shield_sx1262mb1das_get_pa_pwr_cfg(
             ( expected_output_pwr_in_dbm <= SMTC_SHIELD_SX1262_MAX_PWR ) )
         {
             return &(
-                smtc_shield_sx1262mb1das_pa_pwr_cfg_table[expected_output_pwr_in_dbm - SMTC_SHIELD_SX1262_MIN_PWR] );
+                lilygo_t3s3_lora32_sx1262_pa_pwr_cfg_table[expected_output_pwr_in_dbm - SMTC_SHIELD_SX1262_MIN_PWR] );
         }
     }
 
     return NULL;
 }
 
-bool smtc_shield_sx1262mb1das_is_dio2_set_as_rf_switch( void )
+bool lilygo_t3s3_lora32_sx1262_is_dio2_set_as_rf_switch( void )
 {
     return true;
 }
 
-sx126x_reg_mod_t smtc_shield_sx1262mb1das_get_reg_mode( void )
+sx126x_reg_mod_t lilygo_t3s3_lora32_sx1262_get_reg_mode( void )
 {
     return SX126X_REG_MODE_LDO;
 }
 
-const smtc_shield_sx126x_xosc_cfg_t* smtc_shield_sx1262mb1das_get_xosc_cfg( void )
+const smtc_shield_sx126x_xosc_cfg_t* lilygo_t3s3_lora32_sx1262_get_xosc_cfg( void )
 {
-    return &smtc_shield_sx1262mb1das_xosc_cfg;
+    return &lilygo_t3s3_lora32_sx1262_xosc_cfg;
 }
 
-const smtc_shield_sx126x_pinout_t* smtc_shield_sx1262mb1das_get_pinout( void )
+const smtc_shield_sx126x_pinout_t* lilygo_t3s3_lora32_sx1262_get_pinout( void )
 {
-    return &smtc_shield_sx1262mb1das_pinout;
+    return &lilygo_t3s3_lora32_sx1262_pinout;
 }
 
-const smtc_shield_sx126x_capabilities_t* smtc_shield_sx1262mb1das_get_capabilities( void )
+const smtc_shield_sx126x_capabilities_t* lilygo_t3s3_lora32_sx1262_get_capabilities( void )
 {
-    return &smtc_shield_sx1262mb1das_capabilities;
+    return &lilygo_t3s3_lora32_sx1262_capabilities;
 }
 
 /*
