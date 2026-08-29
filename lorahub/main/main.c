@@ -132,7 +132,7 @@ static void set_user_led( bool on )
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 static void configure_power( void ) {
 
-#ifdef CONFIG_HELTEC_WIFI_LORA_32_V3
+#ifdef CONFIG_HELTEC_WIFI_LORA_32_V32
     // Heltec V3.2 uses Vext to power the OLED display and the LDO for the LoRa chip. 
     // Vext is controlled by GPIO36 on the Heltec board.
     gpio_config_t io_conf = {
