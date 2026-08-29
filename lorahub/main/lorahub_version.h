@@ -56,7 +56,7 @@ extern "C" {
 
 #define LORAHUB_FW_VERSION_MAJOR 1
 #define LORAHUB_FW_VERSION_MINOR 1
-#define LORAHUB_FW_VERSION_PATCH 0
+#define LORAHUB_FW_VERSION_PATCH 1
 
 /* version string in format x.x.x */
 #define LORAHUB_FW_VERSION_STR \

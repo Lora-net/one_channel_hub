@@ -76,7 +76,7 @@ static const char* TAG_BSP_SX126X = "BSP_SX126X";
  * --- PRIVATE VARIABLES -------------------------------------------------------
  */
 
-#if defined( CONFIG_HELTEC_WIFI_LORA_32_V3 )
+#if defined( CONFIG_HELTEC_WIFI_LORA_32_V3 ) || defined( CONFIG_HELTEC_WIFI_LORA_32_V32 )
 #include "heltec_wifi_lora_32_v3.h"
 smtc_shield_sx126x_t shield = SMTC_SHIELD_SX1262MB1DAS_INSTANTIATE;
 #elif defined( CONFIG_SEEED_XIAO_ESP32S3_DEVKIT )

@@ -8,6 +8,12 @@ import argparse
 
 # Define the configurations
 configurations = {
+    "heltec_wifi_lora_32_v32": """
+# Build options for Heltec WiFi LoRa 32 v3.2
+CONFIG_HELTEC_WIFI_LORA_32_V32=y
+CONFIG_RADIO_TYPE_SX1262=y
+CONFIG_GATEWAY_DISPLAY=y
+""",
     "heltec_wifi_lora_32_v3": """
 # Build options for Heltec WiFi LoRa 32 v3
 CONFIG_HELTEC_WIFI_LORA_32_V3=y

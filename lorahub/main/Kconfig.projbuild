@@ -19,6 +19,10 @@ menu "Hardware Configuration"
             bool "Heltec WiFi LoRa 32 v3"
             help
                 Select Heltec WiFi LoRa 32 v3.
+        config HELTEC_WIFI_LORA_32_V32
+            bool "Heltec WiFi LoRa 32 v3.2"
+            help
+                Select Heltec WiFi LoRa 32 v3.2.
         config SEEED_XIAO_ESP32S3_DEVKIT
             bool "Seeed Xiao ESP32S3"
             help
