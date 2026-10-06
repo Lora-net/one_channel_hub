@@ -528,12 +528,18 @@ static esp_err_t http_root_get_handler( httpd_req_t* req )
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
-void web_form_to_json( char* dest_json_str, char* src_form_data )
+int web_form_to_json( char* dest_json_str, size_t dest_size, char* src_form_data )
 {
-    dest_json_str[0] = '\0';
+    size_t len = 0;
+    int    n;
 
     // Start building the JSON string
-    strcpy( dest_json_str, "{" );
+    n = snprintf( dest_json_str, dest_size, "{" );
+    if( n < 0 || ( size_t ) n >= dest_size )
+    {
+        return -1;
+    }
+    len = n;
 
     // Tokenize the form data
     char* token;
@@ -546,23 +552,37 @@ void web_form_to_json( char* dest_json_str, char* src_form_data )
         // Extract key and value
         key   = strtok( token, "=" );
         value = strtok( NULL, "=" );
+        if( key == NULL )
+        {
+            return -1;
+        }
+        if( value == NULL )
+        {
+            value = "";
+        }
         // Append key-value pair to JSON string
-        strcat( dest_json_str, "\"" );
-        strcat( dest_json_str, key );
-        strcat( dest_json_str, "\":\"" );
-        strcat( dest_json_str, value );
-        strcat( dest_json_str, "\"," );
+        n = snprintf( dest_json_str + len, dest_size - len, "\"%s\":\"%s\",", key, value );
+        if( n < 0 || ( size_t ) n >= dest_size - len )
+        {
+            return -1;
+        }
+        len += n;
         token = strtok_r( NULL, "&", &saveptr );
     }
 
     // Remove the trailing comma if it exists
-    if( dest_json_str[strlen( dest_json_str ) - 1] == ',' )
+    if( dest_json_str[len - 1] == ',' )
     {
-        dest_json_str[strlen( dest_json_str ) - 1] = '\0';
+        len--;
     }
 
     // Add closing brace
-    strcat( dest_json_str, "}" );
+    n = snprintf( dest_json_str + len, dest_size - len, "}" );
+    if( n < 0 || ( size_t ) n >= dest_size - len )
+    {
+        return -1;
+    }
+    return 0;
 }
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -625,10 +645,9 @@ static esp_err_t set_config_post_handler( httpd_req_t* req )
     /* Convert data to JSON if coming from WEB FORM */
     if( post_src == HTTP_POST_SRC_WEB_FORM )
     {
-        if( sizeof( post_content_json ) > total_len )
+        ESP_LOGI( TAG_WEB, "%s: converting web form data to json string", __FUNCTION__ );
+        if( web_form_to_json( post_content_json, sizeof( post_content_json ), recv_buffer_ptr ) == 0 )
         {
-            ESP_LOGI( TAG_WEB, "%s: converting web form data to json string", __FUNCTION__ );
-            web_form_to_json( post_content_json, recv_buffer_ptr );
             ESP_LOGI( TAG_WEB, "%s: content length %d (max:%d)", __FUNCTION__, strlen( post_content_json ),
                       sizeof( post_content_json ) );
             ESP_LOGI( TAG_WEB, "%s: content %s", __FUNCTION__, post_content_json );

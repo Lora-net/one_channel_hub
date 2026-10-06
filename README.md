@@ -434,6 +434,11 @@ operating with a 125 kHz bandwidth.
 
 # 5. Changelog
 
+### v1.1.1 ###
+
+* http server: fixed a buffer overflow when converting the web form configuration to
+JSON. A configuration that does not fit is now rejected with an error.
+
 ### v1.1.0 ###
 
 * Added full support for LR1121 (sub-GHz and 2.4GHz).
