@@ -28,7 +28,7 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #include "radio_context.h"
 #include "ral.h"
 
-#if defined( CONFIG_HELTEC_WIFI_LORA_32_V3 )
+#if defined( CONFIG_HELTEC_WIFI_LORA_32_V3 ) || defined( CONFIG_HELTEC_WIFI_LORA_32_V32 )
 #if !defined( CONFIG_RADIO_TYPE_SX1262 )
 #error "Wrong radio selected for Heltec WiFi LoRa 32 v3 board. Please select sx1262 radio type"
 #endif

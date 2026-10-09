@@ -25,12 +25,13 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 /* --- PUBLIC CONSTANTS ----------------------------------------------------- */
 
 /* Board specific constants */
-#if defined( CONFIG_HELTEC_WIFI_LORA_32_V3 )
+#if defined( CONFIG_HELTEC_WIFI_LORA_32_V3 ) || defined( CONFIG_HELTEC_WIFI_LORA_32_V32 )
 #define USER_LED_GPIO 35   /* User LED */
 #define USER_BUTTON_GPIO 0 /* User button (PRG) from Heltec board */
 #define OLED_DISPLAY_PIN_NUM_SDA 17
 #define OLED_DISPLAY_PIN_NUM_SCL 18
 #define OLED_DISPLAY_PIN_NUM_RST 21
+#define VEXT_ENABLE_GPIO 36 /* GPIO to enable Vext for Heltec 3.2 board */
 #elif defined( CONFIG_SEEED_XIAO_ESP32S3_DEVKIT )
 #define USER_LED_GPIO 48            /* User LED from Xiao Wio-sx1262 board */
 #define USER_BUTTON_GPIO 21         /* User button from Xiao Wio-sx1262 board */

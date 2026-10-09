@@ -130,6 +130,29 @@ static void set_user_led( bool on )
 }
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+static void configure_power( void ) {
+
+#ifdef CONFIG_HELTEC_WIFI_LORA_32_V32
+    // Heltec V3.2 uses Vext to power the OLED display and the LDO for the LoRa chip. 
+    // Vext is controlled by GPIO36 on the Heltec board.
+    gpio_config_t io_conf = {
+        .pin_bit_mask = 1ULL << VEXT_ENABLE_GPIO,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    ESP_ERROR_CHECK(gpio_config(&io_conf));
+    // Heltec: Vext ON = LOW
+    ESP_ERROR_CHECK(gpio_set_level(VEXT_ENABLE_GPIO, 0));
+
+    // Laisser le LDO / OLED se stabiliser
+    vTaskDelay(pdMS_TO_TICKS(50));
+#endif
+
+}
+
+/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
 static void configure_user_button( void )
 {
@@ -176,6 +199,9 @@ void app_main( )
 
     /* display version informations */
     ESP_LOGI( TAG_MAIN, "*** LoRaHUB v%s ***", LORAHUB_FW_VERSION_STR );
+
+    /* configure power */
+    configure_power( );
 
     /* Initialize display */
     i = pthread_create( &thrid_display, NULL, ( void* ( * ) ( void* ) ) thread_display, NULL );
